@@ -1,0 +1,105 @@
+/* Base styles for PDF.js integration */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* PDF.js Text Layer Styles - Enhanced for Material-UI */
+.text-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: auto;
+  z-index: 10;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.text-layer > div {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  font-size: 1px;
+  line-height: 1;
+  transform-origin: 0 0;
+}
+
+.text-layer ::selection {
+  background: rgba(25, 118, 210, 0.3); /* Material-UI primary color with opacity */
+}
+
+.text-layer ::-moz-selection {
+  background: rgba(25, 118, 210, 0.3);
+}
+
+/* Enhanced scrollbar for PDF viewer */
+.MuiBox-root::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.MuiBox-root::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.MuiBox-root::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.MuiBox-root::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Smooth transitions for Material-UI components */
+.MuiPaper-root {
+  transition: box-shadow 0.3s ease-in-out !important;
+}
+
+.MuiIconButton-root {
+  transition: all 0.2s ease-in-out !important;
+}
+
+/* PDF Canvas enhancements */
+canvas {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+/* Loading states */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Print styles */
+@media print {
+  .text-layer {
+    display: none !important;
+  }
+  
+  canvas {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
