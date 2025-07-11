@@ -2,41 +2,29 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
-  AppBar,
-  Toolbar,
   Typography,
-  IconButton,
   Card,
   CardContent,
   CircularProgress,
-  TextField,
   Button,
-  Tooltip,
-  Divider,
-  Select,
   MenuItem,
-  FormControl,
   Menu,
   ListItemText,
   ListItemIcon,
 } from '@mui/material';
 import {
   ArrowBack,
-  ZoomIn,
-  ZoomOut,
-  NavigateBefore,
-  NavigateNext,
-  FirstPage,
-  LastPage,
   Highlight,
   TextFields,
-  Palette,
-  RotateLeft,
-  RotateRight,
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
 // Import official PDF.js viewer CSS for proper text layer styling
 import 'pdfjs-dist/web/pdf_viewer.css';
+import './PdfViewer.css';
+
+import { useTableOfContents } from './hooks/useTableOfContents';
+import { PdfToolbar } from './components/PdfToolbar';
+import { TableOfContentsDrawer } from './components/TableOfContentsDrawer';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -175,6 +163,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
   const [rotation, setRotation] = useState(0);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [highlightColor, setHighlightColor] = useState('#FFFF00');
+  const [darkMode, setDarkMode] = useState(false);
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -186,6 +175,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const renderTimeoutsRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  
+  // Table of Contents hook will be called after scrollToPage is defined
   
   // Zoom levels
   const zoomOptions = [
@@ -257,6 +248,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         setCurrentPage(1);
         setPageInput('1');
         setIsLoading(false);
+        
+        // Extract table of contents
+        extractTableOfContents(pdf);
       })
       .catch((err) => {
         console.error('Error loading PDF:', err);
@@ -877,6 +871,17 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       pageInfo.container.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  // Table of Contents
+  const {
+    tocItems,
+    isTocOpen,
+    tocLoading,
+    extractTableOfContents,
+    toggleToc,
+    handleTocItemClick,
+    handleTocItemToggle,
+  } = useTableOfContents(pdfDoc, setCurrentPage, setPageInput, scrollToPage);
   
   const handlePageInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setPageInput(event.target.value);
@@ -947,181 +952,47 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     );
   }
   
+  const bookTitle = `PDF Viewer - Book ${bookId}`;
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Main Toolbar */}
-      <AppBar position="static" elevation={0} sx={{ backgroundColor: '#474747', color: 'white' }}>
-        <Toolbar sx={{ minHeight: '48px !important', py: 0 }}>
-          <IconButton
-            edge="start"
-            color="inherit"
-            onClick={handleBack}
-            sx={{ mr: 2 }}
-          >
-            <ArrowBack />
-          </IconButton>
-          
-          <Typography variant="h6" sx={{ flexGrow: 1, fontSize: '1rem' }}>
-            PDF Viewer - Book {bookId}
-          </Typography>
-          
-          {/* Page Navigation */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tooltip title="First Page">
-              <span>
-                <IconButton color="inherit" onClick={goToFirstPage} disabled={currentPage === 1} size="small">
-                  <FirstPage />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Previous Page">
-              <span>
-                <IconButton color="inherit" onClick={goToPreviousPage} disabled={currentPage === 1} size="small">
-                  <NavigateBefore />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Next Page">
-              <span>
-                <IconButton color="inherit" onClick={goToNextPage} disabled={currentPage === totalPages} size="small">
-                  <NavigateNext />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Last Page">
-              <span>
-                <IconButton color="inherit" onClick={goToLastPage} disabled={currentPage === totalPages} size="small">
-                  <LastPage />
-                </IconButton>
-              </span>
-            </Tooltip>
-            
-            <TextField
-              size="small"
-              value={pageInput}
-              onChange={handlePageInputChange}
-              onKeyPress={(e) => e.key === 'Enter' && handlePageInputSubmit()}
-              onBlur={handlePageInputSubmit}
-              sx={{ 
-                width: 50,
-                '& .MuiInputBase-root': { 
-                  height: 32,
-                  color: 'white',
-                  '& input': { textAlign: 'center', p: 0.5 }
-                },
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' }
-              }}
-            />
-            <Typography variant="body2" sx={{ mx: 1 }}>
-              of {totalPages}
-            </Typography>
-          </Box>
-          
-          <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.3)' }} />
-          
-          {/* Zoom Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tooltip title="Zoom Out">
-              <span>
-                <IconButton 
-                  color="inherit" 
-                  onClick={() => {
-                    const currentIndex = zoomOptions.findIndex(opt => opt.value === zoomSelect);
-                    if (currentIndex > 0) {
-                      handleZoomChange(zoomOptions[currentIndex - 1]?.value || '25');
-                    }
-                  }}
-                  disabled={zoomSelect === '25'}
-                  size="small"
-                >
-                  <ZoomOut />
-                </IconButton>
-              </span>
-            </Tooltip>
-            
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <Select
-                value={zoomSelect}
-                onChange={(e) => handleZoomChange(e.target.value)}
-                sx={{
-                  color: 'white',
-                  height: 32,
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-                  '& .MuiSvgIcon-root': { color: 'white' }
-                }}
-              >
-                {zoomOptions.map(option => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <Tooltip title="Zoom In">
-              <span>
-                <IconButton 
-                  color="inherit" 
-                  onClick={() => {
-                    const currentIndex = zoomOptions.findIndex(opt => opt.value === zoomSelect);
-                    if (currentIndex < zoomOptions.length - 3) {
-                      handleZoomChange(zoomOptions[currentIndex + 1]?.value || '400');
-                    }
-                  }}
-                  disabled={zoomSelect === '400'}
-                  size="small"
-                >
-                  <ZoomIn />
-                </IconButton>
-              </span>
-            </Tooltip>
-          </Box>
-          
-          <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.3)' }} />
-          
-          {/* Rotation Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tooltip title="Rotate Left">
-              <IconButton color="inherit" onClick={rotateLeft} size="small">
-                <RotateLeft />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Rotate Right">
-              <IconButton color="inherit" onClick={rotateRight} size="small">
-                <RotateRight />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          
-          <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.3)' }} />
-          
-          {/* Highlight Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Tooltip title="Highlight Color">
-              <IconButton color="inherit" size="small">
-                <Palette />
-              </IconButton>
-            </Tooltip>
-            {highlightColors.map(color => (
-              <Box
-                key={color}
-                sx={{
-                  width: 20,
-                  height: 20,
-                  backgroundColor: color,
-                  border: highlightColor === color ? '2px solid white' : '1px solid rgba(255,255,255,0.3)',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  '&:hover': {
-                    opacity: 0.8,
-                  }
-                }}
-                onClick={() => setHighlightColor(color)}
-              />
-            ))}
-          </Box>
-        </Toolbar>
-      </AppBar>
+      {/* Toolbar */}
+      <PdfToolbar
+        bookTitle={bookTitle}
+        handleBack={handleBack}
+        toggleToc={toggleToc}
+        tocItems={tocItems}
+        goToFirstPage={goToFirstPage}
+        goToPreviousPage={goToPreviousPage}
+        goToNextPage={goToNextPage}
+        goToLastPage={goToLastPage}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageInput={pageInput}
+        handlePageInputChange={handlePageInputChange}
+        handlePageInputSubmit={handlePageInputSubmit}
+        zoomOptions={zoomOptions}
+        zoomSelect={zoomSelect}
+        handleZoomChange={handleZoomChange}
+        rotateLeft={rotateLeft}
+        rotateRight={rotateRight}
+        highlightColors={highlightColors}
+        highlightColor={highlightColor}
+        setHighlightColor={setHighlightColor}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+      />
+
+      {/* Table of Contents Drawer */}
+      <TableOfContentsDrawer
+        isTocOpen={isTocOpen}
+        toggleToc={toggleToc}
+        tocItems={tocItems}
+        tocLoading={tocLoading}
+        handleTocItemClick={handleTocItemClick}
+        handleTocItemToggle={handleTocItemToggle}
+        currentPage={currentPage}
+      />
       
       {/* PDF Viewer */}
       <Box
@@ -1130,8 +1001,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         sx={{
           flexGrow: 1,
           overflow: 'auto',
-          backgroundColor: '#525659',
+          backgroundColor: darkMode ? '#1a1a1a' : '#525659',
           p: 2,
+          filter: darkMode ? 'invert(1) hue-rotate(180deg)' : 'none',
           '&::-webkit-scrollbar': {
             width: '12px',
           },
