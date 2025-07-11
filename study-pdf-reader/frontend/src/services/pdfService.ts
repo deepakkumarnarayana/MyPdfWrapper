@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { PDF, Flashcard, FlashcardGenerationResponse } from '../types'
+import { Book } from '../types/dashboard'
 
 const API_BASE_URL = '/api'
 
@@ -71,6 +72,19 @@ export const pdfService = {
 
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
     const response = await api.get('/health')
+    return response.data
+  },
+
+  // Dashboard book APIs
+  async getBook(id: string): Promise<Book> {
+    const response = await api.get<Book>(`/books/${id}`)
+    return response.data
+  },
+
+  async getPdfFile(id: string): Promise<ArrayBuffer> {
+    const response = await api.get(`/books/${id}/pdf`, {
+      responseType: 'arraybuffer',
+    })
     return response.data
   },
 }

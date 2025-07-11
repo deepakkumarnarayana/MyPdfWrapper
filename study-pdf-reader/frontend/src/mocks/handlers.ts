@@ -4,9 +4,9 @@ import { Book } from '../types/dashboard';
 const mockBooks: Book[] = [
   {
     id: 'book-1',
-    title: "Machine Learning Fundamentals",
-    fileName: "ml-fundamentals.pdf",
-    fileUrl: "/api/files/ml-fundamentals.pdf",
+    title: "Operating Systems",
+    fileName: "operating-systems-book.pdf",
+    fileUrl: "/api/files/operating-systems-book.pdf",
     pages: 'Pages 1-350',
     progress: 65,
     status: 'In Progress',
@@ -20,9 +20,9 @@ const mockBooks: Book[] = [
   },
   {
     id: 'book-2',
-    title: "Data Structures & Algorithms",
-    fileName: "dsa-book.pdf",
-    fileUrl: "/api/files/dsa-book.pdf",
+    title: "Cloud Native Spring in Action",
+    fileName: "CNSIA.pdf",
+    fileUrl: "/api/files/CNSIA.pdf",
     pages: 'Pages 1-500',
     progress: 30,
     status: 'Started',
@@ -182,7 +182,7 @@ export const handlers = [
     });
   }),
 
-  http.get('/auth/notifications', async () => {
+  http.get('*/api/auth/notifications', async () => {
     await simulateDelay();
     return HttpResponse.json({
       data: [
@@ -193,7 +193,7 @@ export const handlers = [
     });
   }),
 
-  http.post('/auth/notifications/:id/read', async ({ params }) => {
+  http.post('*/api/auth/notifications/:id/read', async ({ params }) => {
     await simulateDelay();
     return HttpResponse.json({
       data: { id: params.id, message: 'Welcome to the platform', read: true, timestamp: new Date().toISOString() },
@@ -345,13 +345,13 @@ export const handlers = [
     let pdfPath = '/sample-pdfs/sample-ml-book.pdf';
     
     if (params.id === 'book-1') {
-      pdfPath = '/sample-pdfs/multipage-sample.pdf';
+      pdfPath = '/sample-pdfs/operating-systems-book.pdf';
     } else if (params.id === 'book-2') {
-      pdfPath = '/sample-pdfs/sample-ml-book.pdf';
+      pdfPath = '/sample-pdfs/CNSIA.pdf';
     } else if (params.id === 'book-3') {
       pdfPath = '/sample-pdfs/multipage-sample.pdf';
     } else if (params.id === 'book-4') {
-      pdfPath = '/sample-pdfs/sample-ml-book.pdf';
+      pdfPath = '/sample-pdfs/sample-document.pdf';
     }
     
     try {
