@@ -1,101 +1,70 @@
-import { useState } from 'react'
-import { Box, Typography, Container, Paper, Drawer } from '@mui/material'
-import { Header } from './components/Header'
-import { Sidebar } from './components/Sidebar'
-import { PDFViewer } from './components/PDFViewer'
-import { FlashcardPanel } from './components/FlashcardPanel'
-import { UploadArea } from './components/UploadArea'
-import { PDFDebug } from './components/PDFDebug'
-import { usePDFStore } from './stores/pdfStore'
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { customTheme } from './theme';
+import { useAuth, useBooks, useSessions, useUI } from './store';
+import { Header } from './components/layout/Header';
+import { Sidebar } from './components/layout/Sidebar';
+import { Dashboard } from './components/Dashboard';
+import { PdfViewer } from './components/PdfViewer';
+import { Box } from '@mui/material';
 
-const SIDEBAR_WIDTH = 320
-const FLASHCARD_PANEL_WIDTH = 384
+const App: React.FC = () => {
+  const { user, isAuthenticated, checkAuth, fetchNotifications, notifications } = useAuth();
+  const { fetchBooks } = useBooks();
+  const { fetchSessions } = useSessions();
+  const { sidebarCollapsed, toggleSidebar } = useUI();
 
-function App() {
-  const { currentPDF, pdfs } = usePDFStore()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Initialize app
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Fetch data when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchBooks();
+      fetchSessions();
+      fetchNotifications();
+    }
+  }, [isAuthenticated, fetchBooks, fetchSessions, fetchNotifications]);
 
   return (
-    <Box display="flex" flexDirection="column" height="100vh">
-      <Header />
-      
-      <Box display="flex" flex={1} overflow="hidden">
-        <Drawer
-          variant="persistent"
-          anchor="left"
-          open={sidebarOpen}
-          sx={{
-            width: sidebarOpen ? SIDEBAR_WIDTH : 0,
-            flexShrink: 0,
-            '& .MuiDrawer-paper': {
-              width: SIDEBAR_WIDTH,
-              boxSizing: 'border-box',
-              position: 'relative',
-              border: 'none',
-              borderRight: '1px solid',
-              borderColor: 'divider',
-            },
-          }}
-        >
-          <Sidebar 
-            open={sidebarOpen} 
-            onToggle={() => setSidebarOpen(!sidebarOpen)}
-          />
-        </Drawer>
-        
-        <Box display="flex" flex={1} overflow="hidden">
-          <Box component="main" flex={1} overflow="hidden">
-            {currentPDF ? (
-              <PDFViewer pdf={currentPDF} />
-            ) : (
-              <Box 
-                display="flex" 
-                alignItems="center" 
-                justifyContent="center" 
-                height="100%"
-                bgcolor="background.default"
-                p={3}
-              >
-                {pdfs.length > 0 ? (
-                  <Box textAlign="center">
-                    <Typography variant="h4" gutterBottom color="text.primary">
-                      Select a PDF to get started
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                      Choose a PDF from the sidebar to begin studying
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Container maxWidth="lg">
-                    <Box display="flex" flexDirection="column" gap={4}>
-                      <UploadArea />
-                      <PDFDebug />
-                    </Box>
-                  </Container>
-                )}
-              </Box>
-            )}
-          </Box>
+    <ThemeProvider theme={customTheme}>
+      <CssBaseline />
+      <Router>
+        <Routes>
+          {/* PDF Viewer Route - Full Screen */}
+          <Route path="/pdf/:bookId" element={<PdfViewer />} />
           
-          {currentPDF && (
-            <Paper 
-              elevation={2}
-              sx={{ 
-                width: FLASHCARD_PANEL_WIDTH,
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 0,
-                borderLeft: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <FlashcardPanel pdf={currentPDF} />
-            </Paper>
-          )}
-        </Box>
-      </Box>
-    </Box>
-  )
-}
+          {/* Dashboard Route - With Sidebar */}
+          <Route path="*" element={
+            <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+              <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+              <Box
+                component="main"
+                sx={{
+                  flexGrow: 1,
+                  pl: sidebarCollapsed ? `${customTheme.custom.sidebar.collapsedWidth}px` : `${customTheme.custom.sidebar.width}px`,
+                  transition: customTheme.transitions.create('padding-left'),
+                }}
+              >
+                <Header
+                  user={user}
+                  isAuthenticated={isAuthenticated}
+                  notifications={notifications}
+                />
+                <Routes>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/" element={<Dashboard />} />
+                </Routes>
+              </Box>
+            </Box>
+          } />
+        </Routes>
+      </Router>
+    </ThemeProvider>
+  );
+};
 
-export default App
+export default App;

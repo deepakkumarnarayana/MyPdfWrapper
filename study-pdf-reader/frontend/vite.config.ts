@@ -23,32 +23,30 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    target: 'esnext',
+    target: 'es2022',
     minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          pdf: ['pdfjs-dist'],
         }
       }
     }
   },
+  esbuild: {
+    target: 'es2022'
+  },
+  define: {
+    global: 'globalThis',
+  },
   optimizeDeps: {
-    include: ['pdfjs-dist'],
-    exclude: ['pdfjs-dist/build/pdf.worker.min.mjs']
+    include: ['react-pdf'],
+    esbuildOptions: {
+      target: 'es2022',
+    },
   },
   worker: {
     format: 'es'
-  },
-  css: {
-    postcss: './postcss.config.js',
-  },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    css: true,
   },
   resolve: {
     alias: {
