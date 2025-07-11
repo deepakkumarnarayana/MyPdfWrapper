@@ -11,6 +11,8 @@ build/
 # Environment variables
 .env
 .env.local
+.env.development
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
@@ -61,10 +63,18 @@ build/
 *.sqlite3
 
 # Storage
-storage/pdfs/*
-!storage/pdfs/.gitkeep
-storage/database/*
-!storage/database/.gitkeep
+storage/
+!storage/.gitkeep
+
+# PDF files
+*.pdf
+frontend/public/sample-pdfs/
+frontend/public/mock/
+
+# TypeScript build info
+frontend/tsconfig.tsbuildinfo
+backend/tsconfig.tsbuildinfo
+tsconfig.tsbuildinfo
 
 # Testing
 coverage/
@@ -133,6 +143,10 @@ pids/
 # Temporary folders
 tmp/
 temp/
+
+# Session files and temporary content
+**/2025-*-this-session-is-being-continued-from-a-previous-co.txt
+**/*session*continued*.txt
 
 # Editor directories and files
 .idea
