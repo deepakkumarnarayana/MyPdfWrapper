@@ -68,6 +68,9 @@ const textLayerCSS = `
     transform-origin: 0% 0%;
     user-select: text;
     pointer-events: auto;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
   }
   
   .textLayer ::selection {
@@ -115,10 +118,12 @@ const textLayerCSS = `
   }
   
   .textLayer .highlight {
-    margin: -1px;
-    padding: 1px;
-    background-color: rgba(180, 0, 170, 1);
-    border-radius: 4px;
+    background-color: rgba(255, 255, 0, 0.6);
+    pointer-events: auto;
+    position: absolute;
+    z-index: 4;
+    border: 1px solid rgba(255, 200, 0, 0.8);
+    cursor: pointer;
   }
 `;
 
@@ -132,6 +137,8 @@ interface PageRenderInfo {
   container: HTMLDivElement;
   scale: number;
   rendered: boolean;
+  rendering: boolean;
+  renderKey?: string;
   textContent: any;
   annotations: any[];
 }
@@ -143,6 +150,13 @@ interface Highlight {
   color: string;
   text: string;
   timestamp: Date;
+}
+
+interface ContextMenuState {
+  mouseX: number;
+  mouseY: number;
+  text: string;
+  highlightId?: string;
 }
 
 export const PdfViewer: React.FC<PdfViewerProps> = () => {
@@ -163,11 +177,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
   const [highlightColor, setHighlightColor] = useState('#FFFF00');
   
   // Context menu state
-  const [contextMenu, setContextMenu] = useState<{
-    mouseX: number;
-    mouseY: number;
-    text: string;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   
   // Refs
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -175,6 +185,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
   const renderTasksRef = useRef<Map<number, any>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const styleRef = useRef<HTMLStyleElement | null>(null);
+  const renderTimeoutsRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   
   // Zoom levels
   const zoomOptions = [
@@ -260,6 +271,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       });
       renderTasksRef.current.clear();
       
+      // Clear all timeouts
+      renderTimeoutsRef.current.forEach(timeout => {
+        clearTimeout(timeout);
+      });
+      renderTimeoutsRef.current.clear();
+      
       if (pdfDoc) {
         pdfDoc.destroy();
       }
@@ -309,22 +326,41 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       container,
       scale: 1,
       rendered: false,
+      rendering: false,
+      renderKey: undefined,
       textContent: null,
       annotations: [],
     };
   };
   
-  // Render page with text and annotation layers
-  const renderPage = useCallback(async (pageNum: number) => {
+  // Internal render page implementation
+  const renderPageInternal = useCallback(async (pageNum: number) => {
     if (!pdfDoc) return;
     
     const pageInfo = pagesRef.current.get(pageNum);
     if (!pageInfo) return;
     
-    // Cancel any existing render task for this page
+    // Create a unique render key for this operation
+    const renderKey = `${pageNum}-${scale}-${rotation}-${zoomSelect}`;
+    
+    // Skip if already rendering or rendered with same parameters
+    if (pageInfo.rendering) return;
+    if (pageInfo.rendered && pageInfo.scale === scale && pageInfo.renderKey === renderKey) return;
+    
+    // Mark as rendering and set render key
+    pageInfo.rendering = true;
+    pageInfo.renderKey = renderKey;
+    
+    // Cancel any existing render task for this page and wait for cleanup
     const existingTask = renderTasksRef.current.get(pageNum);
     if (existingTask) {
-      existingTask.cancel();
+      try {
+        existingTask.cancel();
+        await new Promise(resolve => setTimeout(resolve, 10));
+      } catch (e) {
+        // Ignore cancellation errors
+      }
+      renderTasksRef.current.delete(pageNum);
     }
     
     try {
@@ -378,7 +414,15 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       const renderTask = page.render(renderContext);
       renderTasksRef.current.set(pageNum, renderTask);
       
-      await renderTask.promise;
+      try {
+        await renderTask.promise;
+      } catch (error) {
+        if (error.name === 'RenderingCancelledException') {
+          // Rendering was cancelled, this is expected
+          return;
+        }
+        throw error;
+      }
       
       // Render text layer using official PDF.js TextLayer class
       const textContent = await page.getTextContent();
@@ -405,11 +449,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
             textDivs: [],
           }).promise;
           
-          console.log(`Text layer rendered for page ${pageNum}, scale: ${renderScale}`);
-          
-          // Debug: Check if text elements were created
-          const textElements = textLayer.querySelectorAll('span');
-          console.log(`Created ${textElements.length} text elements`);
+          // Apply existing highlights after text layer is rendered
+          if (highlights.length > 0) {
+            requestAnimationFrame(() => applyHighlights(pageNum));
+          }
         } else {
           console.error('renderTextLayer not available');
         }
@@ -451,52 +494,98 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       applyHighlights(pageNum);
       
       pageInfo.rendered = true;
+      pageInfo.rendering = false;
       pageInfo.scale = renderScale;
       renderTasksRef.current.delete(pageNum);
       
     } catch (err) {
-      console.error(`Error rendering page ${pageNum}:`, err);
-      if (err instanceof Error && err.message.includes('cancelled')) {
+      pageInfo.rendering = false;
+      if (err instanceof Error && err.name === 'RenderingCancelledException') {
         return;
       }
+      console.error(`Error rendering page ${pageNum}:`, err);
       renderTasksRef.current.delete(pageNum);
     }
   }, [pdfDoc, scale, zoomSelect, rotation]);
+
+  // Optimized render page function with smart scheduling
+  const debouncedRenderPage = useCallback((pageNum: number) => {
+    // Clear any existing timeout for this page
+    const existingTimeout = renderTimeoutsRef.current.get(pageNum);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+    
+    // Render first 5 pages immediately for better UX
+    if (pageNum <= 5) {
+      renderPageInternal(pageNum);
+    } else {
+      // Use requestAnimationFrame for smoother rendering
+      const timeout = setTimeout(() => {
+        requestAnimationFrame(() => {
+          renderPageInternal(pageNum);
+        });
+        renderTimeoutsRef.current.delete(pageNum);
+      }, 16); // ~60fps timing
+      
+      renderTimeoutsRef.current.set(pageNum, timeout);
+    }
+  }, [renderPageInternal]);
+
+  // Memoize the debounced function dependencies
+  const renderPage = debouncedRenderPage;
   
-  // Apply highlights to page
-  const applyHighlights = (pageNum: number) => {
+  // Apply highlights to page using provided highlights array
+  const applyHighlightsToPage = useCallback((pageNum: number, highlightsArray: Highlight[]) => {
     const pageInfo = pagesRef.current.get(pageNum);
     if (!pageInfo) return;
     
-    const pageHighlights = highlights.filter(h => h.pageNumber === pageNum);
+    const pageHighlights = highlightsArray.filter(h => h.pageNumber === pageNum);
     
-    // Clear existing highlights
+    // Clear existing highlights efficiently
     const existingHighlights = pageInfo.textLayer.querySelectorAll('.highlight');
     existingHighlights.forEach(el => el.remove());
     
+    // Create document fragment for batch DOM insertion
+    const fragment = document.createDocumentFragment();
+    
     pageHighlights.forEach((highlight) => {
-      highlight.rects.forEach((rect) => {
+      highlight.rects.forEach((rect, rectIndex) => {
         const highlightDiv = document.createElement('div');
         highlightDiv.className = 'highlight';
-        highlightDiv.style.cssText = `
-          position: absolute;
-          left: ${rect.x}px;
-          top: ${rect.y}px;
-          width: ${rect.width}px;
-          height: ${rect.height}px;
-          background-color: ${highlight.color};
-          opacity: 0.3;
-          pointer-events: none;
-          z-index: 1;
-        `;
-        pageInfo.textLayer.appendChild(highlightDiv);
+        highlightDiv.setAttribute('data-highlight-id', highlight.id);
+        highlightDiv.title = `"${highlight.text}" - Right-click to delete`;
+        
+        // Optimized inline styles with click detection
+        highlightDiv.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px;background-color:${highlight.color};opacity:0.6;pointer-events:auto;z-index:4;cursor:pointer;border:1px solid ${highlight.color};border-opacity:0.8;`;
+        
+        // Add right-click handler for deletion
+        highlightDiv.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          setContextMenu({
+            mouseX: e.clientX,
+            mouseY: e.clientY,
+            text: highlight.text,
+            highlightId: highlight.id,
+          });
+        });
+        
+        fragment.appendChild(highlightDiv);
       });
     });
-  };
+    
+    // Single DOM insertion
+    pageInfo.textLayer.appendChild(fragment);
+  }, []);
+
+  // Apply highlights to page using current state  
+  const applyHighlights = useCallback((pageNum: number) => {
+    applyHighlightsToPage(pageNum, highlights);
+  }, [highlights, applyHighlightsToPage]);
   
-  // Handle text selection
+  // Optimized text selection handler
   const handleTextSelection = useCallback(() => {
-    // Text selection tracking is handled by context menu
+    // Debounced selection handling if needed
   }, []);
   
   // Handle context menu
@@ -514,22 +603,18 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
   };
   
   // Add highlight
-  const addHighlight = (color: string) => {
+  const addHighlight = useCallback((color: string) => {
     const selection = window.getSelection();
-    if (!selection || !selection.toString().trim()) {
-      return;
-    }
+    if (!selection || !selection.toString().trim()) return;
     
     try {
-      // Get selection range and page
       const range = selection.getRangeAt(0);
       
       // Find the text layer containing the selection
-      let textLayer: Element | null = null;
-      let pageContainer: Element | null = null;
       let element = range.commonAncestorContainer;
+      let textLayer: Element | null = null;
       
-      // Traverse up the DOM tree to find the text layer
+      // Traverse up to find text layer (optimized)
       while (element && element !== document.body) {
         if (element.nodeType === Node.ELEMENT_NODE) {
           const el = element as Element;
@@ -541,45 +626,34 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         element = element.parentNode as Node;
       }
       
-      if (!textLayer) {
-        return;
-      }
+      if (!textLayer) return;
       
-      // Find the page container
-      pageContainer = textLayer.closest('.page-container');
-      if (!pageContainer) {
-        return;
-      }
+      // Find page container and number
+      const pageContainer = textLayer.closest('.page-container');
+      if (!pageContainer) return;
       
       let pageNum = parseInt(pageContainer.getAttribute('data-page') || '0');
       if (pageNum === 0) {
-        // Try to find page number from page info map
         const foundPage = Array.from(pagesRef.current.entries()).find(([, info]) => 
           info.textLayer === textLayer
         );
-        if (!foundPage) {
-          return;
-        }
+        if (!foundPage) return;
         pageNum = foundPage[0];
       }
       
-      // Calculate highlight rectangles relative to the text layer
-      const rects = Array.from(range.getClientRects()).map(rect => {
-        const textLayerRect = textLayer!.getBoundingClientRect();
-        return {
-          x: rect.left - textLayerRect.left,
-          y: rect.top - textLayerRect.top,
-          width: rect.width,
-          height: rect.height,
-        };
-      });
+      // Calculate highlight rectangles
+      const textLayerRect = textLayer.getBoundingClientRect();
+      const rects = Array.from(range.getClientRects()).map(rect => ({
+        x: rect.left - textLayerRect.left,
+        y: rect.top - textLayerRect.top,
+        width: rect.width,
+        height: rect.height,
+      }));
       
-      if (rects.length === 0) {
-        return;
-      }
+      if (rects.length === 0) return;
       
       const highlight: Highlight = {
-        id: Date.now().toString(),
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         pageNumber: pageNum,
         rects,
         color,
@@ -587,12 +661,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         timestamp: new Date(),
       };
       
-      setHighlights(prev => [...prev, highlight]);
-      
-      // Apply highlight immediately
-      setTimeout(() => {
-        applyHighlights(pageNum);
-      }, 100);
+      setHighlights(prev => {
+        const newHighlights = [...prev, highlight];
+        // Apply highlights immediately with new array
+        requestAnimationFrame(() => {
+          applyHighlightsToPage(pageNum, newHighlights);
+        });
+        return newHighlights;
+      });
       
       // Clear selection
       selection.removeAllRanges();
@@ -601,27 +677,67 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     } catch (error) {
       console.error('Error adding highlight:', error);
     }
-  };
+  }, []);
+
+  // Delete highlight
+  const deleteHighlight = useCallback((highlightId: string) => {
+    setHighlights(prev => {
+      const updated = prev.filter(h => h.id !== highlightId);
+      // Re-apply highlights to all visible pages
+      requestAnimationFrame(() => {
+        const visiblePages = Array.from(pagesRef.current.keys()).slice(0, 5);
+        visiblePages.forEach(pageNum => {
+          const pageInfo = pagesRef.current.get(pageNum);
+          if (pageInfo && pageInfo.rendered) {
+            applyHighlightsToPage(pageNum, updated);
+          }
+        });
+      });
+      return updated;
+    });
+    setContextMenu(null);
+  }, []);
   
-  // Setup intersection observer
+  // Setup intersection observer with throttling
   useEffect(() => {
     if (!pdfDoc || !viewerRef.current) return;
     
+    let updateTimeout: NodeJS.Timeout;
+    
     observerRef.current = new IntersectionObserver(
       (entries) => {
+        let topMostVisiblePage = null;
+        let topMostPosition = Infinity;
+        
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             const pageNum = parseInt(entry.target.getAttribute('data-page') || '0');
             if (pageNum > 0) {
-              renderPage(pageNum);
+              debouncedRenderPage(pageNum);
+              
+              // Track the topmost visible page for current page updates
+              const rect = entry.boundingClientRect;
+              if (rect.top < topMostPosition && rect.top >= -50) { // Better offset
+                topMostPosition = rect.top;
+                topMostVisiblePage = pageNum;
+              }
             }
           }
         });
+        
+        // Throttle current page updates to reduce glitches
+        if (topMostVisiblePage && topMostVisiblePage !== currentPage) {
+          clearTimeout(updateTimeout);
+          updateTimeout = setTimeout(() => {
+            setCurrentPage(topMostVisiblePage);
+            setPageInput(topMostVisiblePage.toString());
+          }, 100); // 100ms throttle
+        }
       },
       {
         root: viewerRef.current,
-        rootMargin: '100px',
-        threshold: 0.1,
+        rootMargin: '50px',
+        threshold: 0.3, // Single threshold for better performance
       }
     );
     
@@ -630,7 +746,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         observerRef.current.disconnect();
       }
     };
-  }, [pdfDoc, renderPage]);
+  }, [pdfDoc, debouncedRenderPage]);
   
   // Create and render all pages
   useEffect(() => {
@@ -656,35 +772,63 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     
     // Render first few pages immediately
     for (let i = 1; i <= Math.min(3, totalPages); i++) {
-      renderPage(i);
+      debouncedRenderPage(i);
     }
     
-  }, [pdfDoc, totalPages, renderPage]);
+  }, [pdfDoc, totalPages, debouncedRenderPage]);
   
   // Re-render pages when scale or rotation changes
   useEffect(() => {
     if (!pdfDoc) return;
     
-    // Mark all pages as not rendered
+    // Cancel all ongoing renders and mark for re-render
+    renderTasksRef.current.forEach(task => {
+      try {
+        task.cancel();
+      } catch (e) {
+        // Ignore errors
+      }
+    });
+    renderTasksRef.current.clear();
+    
+    // Mark all pages as not rendered and reset rendering state
     pagesRef.current.forEach(pageInfo => {
       pageInfo.rendered = false;
+      pageInfo.rendering = false;
+      pageInfo.renderKey = undefined;
     });
     
     // Re-render visible pages
     const visiblePages = Array.from(pagesRef.current.keys()).slice(0, 5);
     visiblePages.forEach(pageNum => {
-      renderPage(pageNum);
+      debouncedRenderPage(pageNum);
     });
     
-  }, [scale, zoomSelect, rotation, renderPage]);
+  }, [scale, zoomSelect, rotation, debouncedRenderPage]);
   
-  // Add text selection listener
+  // Optimize highlights when they change
   useEffect(() => {
-    document.addEventListener('selectionchange', handleTextSelection);
-    return () => {
-      document.removeEventListener('selectionchange', handleTextSelection);
+    if (highlights.length > 0) {
+      // Re-apply highlights to visible pages
+      const visiblePages = Array.from(pagesRef.current.keys()).slice(0, 5);
+      visiblePages.forEach(pageNum => {
+        const pageInfo = pagesRef.current.get(pageNum);
+        if (pageInfo && pageInfo.rendered) {
+          applyHighlights(pageNum);
+        }
+      });
+    }
+  }, [highlights, applyHighlights]);
+  
+  // Text selection listener (optimized)
+  useEffect(() => {
+    const handleSelection = () => {
+      // Minimal selection tracking if needed
     };
-  }, [handleTextSelection]);
+    
+    document.addEventListener('selectionchange', handleSelection, { passive: true });
+    return () => document.removeEventListener('selectionchange', handleSelection);
+  }, []);
   
   // Handle zoom change
   const handleZoomChange = (value: string) => {
@@ -1017,21 +1161,34 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
             : { top: 0, left: 0 }
         }
       >
-        <MenuItem onClick={() => addHighlight(highlightColor)}>
-          <ListItemIcon>
-            <Highlight sx={{ color: highlightColor }} />
-          </ListItemIcon>
-          <ListItemText>Highlight</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => {
-          navigator.clipboard.writeText(contextMenu?.text || '');
-          setContextMenu(null);
-        }}>
-          <ListItemIcon>
-            <TextFields />
-          </ListItemIcon>
-          <ListItemText>Copy Text</ListItemText>
-        </MenuItem>
+        {contextMenu?.highlightId ? (
+          // Context menu for existing highlights
+          <MenuItem onClick={() => deleteHighlight(contextMenu.highlightId!)}>
+            <ListItemIcon>
+              <Highlight sx={{ color: 'red' }} />
+            </ListItemIcon>
+            <ListItemText>Delete Highlight</ListItemText>
+          </MenuItem>
+        ) : (
+          // Context menu for text selection
+          <>
+            <MenuItem onClick={() => addHighlight(highlightColor)}>
+              <ListItemIcon>
+                <Highlight sx={{ color: highlightColor }} />
+              </ListItemIcon>
+              <ListItemText>Highlight</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={() => {
+              navigator.clipboard.writeText(contextMenu?.text || '');
+              setContextMenu(null);
+            }}>
+              <ListItemIcon>
+                <TextFields />
+              </ListItemIcon>
+              <ListItemText>Copy Text</ListItemText>
+            </MenuItem>
+          </>
+        )}
       </Menu>
     </Box>
   );

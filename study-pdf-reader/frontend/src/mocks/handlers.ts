@@ -202,7 +202,7 @@ export const handlers = [
     });
   }),
 
-  http.get('/auth/check', async () => {
+  http.get('*/api/auth/check', async () => {
     await simulateDelay();
     return HttpResponse.json({
       data: { 
