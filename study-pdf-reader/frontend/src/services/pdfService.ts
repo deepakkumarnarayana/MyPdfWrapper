@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { PDF, Flashcard, FlashcardGenerationResponse, APIError } from '../types'
+import { PDF, Flashcard, FlashcardGenerationResponse } from '../types'
 
 const API_BASE_URL = '/api'
 

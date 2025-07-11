@@ -1,0 +1,158 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  z-index: 40;
+  transition: width var(--transition-slow);
+}
+
+.left {
+  left: 0;
+}
+
+.right {
+  right: 0;
+}
+
+.default {
+  background-color: white;
+  border-right: 1px solid var(--color-gray-200);
+}
+
+.compact {
+  background-color: var(--color-gray-900);
+  color: white;
+}
+
+.floating {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  margin: var(--spacing-4);
+  height: calc(100vh - (var(--spacing-4) * 2));
+}
+
+.header {
+  padding: var(--spacing-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.compact .header {
+  border-bottom: 1px solid var(--color-gray-700);
+}
+
+.title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.compact .title {
+  color: white;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.toggleButton {
+  padding: var(--spacing-1);
+  border: none;
+  background-color: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-gray-600);
+  transition: background-color var(--transition-base);
+}
+
+.toggleButton:hover {
+  background-color: var(--color-gray-100);
+}
+
+.compact .toggleButton {
+  color: white;
+}
+
+.compact .toggleButton:hover {
+  background-color: var(--color-gray-700);
+}
+
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-2);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-4);
+  margin-bottom: var(--spacing-1);
+  border-radius: var(--radius-base);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  color: var(--color-gray-700);
+}
+
+.item:hover {
+  background-color: var(--color-gray-100);
+}
+
+.compact .item {
+  color: var(--color-gray-300);
+}
+
+.compact .item:hover {
+  background-color: var(--color-gray-800);
+}
+
+.item.active {
+  font-weight: var(--font-weight-semibold);
+}
+
+.item.active.default {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.item.active.compact {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.itemIcon {
+  margin-right: var(--spacing-3);
+  width: 20px;
+  text-align: center;
+}
+
+.itemLabel {
+  flex: 1;
+}
+
+.itemArrow {
+  transition: transform var(--transition-base);
+}
+
+.itemArrow.expanded {
+  transform: rotate(90deg);
+}
+
+.children {
+  /* No specific styles needed for the container */
+}
+
+.footer {
+  padding: var(--spacing-4);
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.compact .footer {
+  border-top: 1px solid var(--color-gray-700);
+}
