@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import {
   ArrowBack,
-  Highlight,
+  Highlight as HighlightIcon,
   TextFields,
 } from '@mui/icons-material';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -123,10 +123,10 @@ interface PageRenderInfo {
   textLayer: HTMLDivElement;
   annotationLayer: HTMLDivElement;
   container: HTMLDivElement;
-  scale: number;
+  scale: number | string;
+  rotation: number;
   rendered: boolean;
   rendering: boolean;
-  renderKey?: string;
   textContent: any;
   annotations: any[];
 }
@@ -174,7 +174,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
   const renderTasksRef = useRef<Map<number, any>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const styleRef = useRef<HTMLStyleElement | null>(null);
-  const renderTimeoutsRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const renderQueueRef = useRef<Set<number>>(new Set());
+  const maxConcurrentRenders = useRef(2); // Limit concurrent renders to prevent conflicts
   
   // Table of Contents hook will be called after scrollToPage is defined
   
@@ -264,12 +265,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         if (task) task.cancel();
       });
       renderTasksRef.current.clear();
-      
-      // Clear all timeouts
-      renderTimeoutsRef.current.forEach(timeout => {
-        clearTimeout(timeout);
-      });
-      renderTimeoutsRef.current.clear();
+      renderQueueRef.current.clear();
       
       if (pdfDoc) {
         pdfDoc.destroy();
@@ -296,6 +292,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     `;
     
     const canvas = document.createElement('canvas');
+    // Add unique identifier to prevent canvas reuse
+    canvas.id = `pdf-canvas-${pageNum}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     canvas.style.cssText = `
       display: block;
       max-width: 100%;
@@ -304,9 +302,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     
     const textLayer = document.createElement('div');
     textLayer.className = 'textLayer';
+    textLayer.id = `pdf-text-layer-${pageNum}-${Date.now()}`;
     
     const annotationLayer = document.createElement('div');
     annotationLayer.className = 'annotationLayer';
+    annotationLayer.id = `pdf-annotation-layer-${pageNum}-${Date.now()}`;
     
     container.appendChild(canvas);
     container.appendChild(textLayer);
@@ -319,37 +319,42 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       annotationLayer,
       container,
       scale: 1,
+      rotation: 0,
       rendered: false,
       rendering: false,
-      renderKey: undefined,
       textContent: null,
       annotations: [],
     };
   };
   
-  // Internal render page implementation
-  const renderPageInternal = useCallback(async (pageNum: number) => {
+  // Render page with text and annotation layers
+  const renderPage = useCallback(async (pageNum: number) => {
     if (!pdfDoc) return;
     
     const pageInfo = pagesRef.current.get(pageNum);
     if (!pageInfo) return;
     
-    // Create a unique render key for this operation
-    const renderKey = `${pageNum}-${scale}-${rotation}-${zoomSelect}`;
-    
-    // Skip if already rendering or rendered with same parameters
+    // Skip if already rendering
     if (pageInfo.rendering) return;
-    if (pageInfo.rendered && pageInfo.scale === scale && pageInfo.renderKey === renderKey) return;
     
-    // Mark as rendering and set render key
-    pageInfo.rendering = true;
-    pageInfo.renderKey = renderKey;
+    // Skip if already rendered at current scale and zoom settings
+    const currentZoomScale = zoomSelect === 'auto' || zoomSelect === 'page-fit' ? 'dynamic' : scale;
+    if (pageInfo.rendered && pageInfo.scale === currentZoomScale && pageInfo.rotation === rotation) return;
     
-    // Cancel any existing render task for this page and wait for cleanup
+    // Check if we're at the concurrent render limit
+    const currentRenderCount = renderTasksRef.current.size;
+    if (currentRenderCount >= maxConcurrentRenders.current) {
+      // Add to queue and return
+      renderQueueRef.current.add(pageNum);
+      return;
+    }
+    
+    // Cancel any existing render task for this page first
     const existingTask = renderTasksRef.current.get(pageNum);
     if (existingTask) {
       try {
         existingTask.cancel();
+        // Wait a bit for the cancellation to take effect
         await new Promise(resolve => setTimeout(resolve, 10));
       } catch (e) {
         // Ignore cancellation errors
@@ -357,12 +362,18 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       renderTasksRef.current.delete(pageNum);
     }
     
+    // Mark as rendering after cancelling existing task
+    pageInfo.rendering = true;
+    
     try {
       const page = await pdfDoc.getPage(pageNum);
       const { canvas, textLayer, annotationLayer } = pageInfo;
       const context = canvas.getContext('2d');
       
       if (!context) return;
+      
+      // Define current zoom scale for later use
+      const currentZoomScale = zoomSelect === 'auto' || zoomSelect === 'page-fit' ? 'dynamic' : scale;
       
       // Calculate scale
       let renderScale = scale;
@@ -400,22 +411,38 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       // Clear and render page
       context.clearRect(0, 0, canvas.width, canvas.height);
       
+      // Check if this canvas is already being used for rendering
+      const isCanvasInUse = Array.from(renderTasksRef.current.values()).some(task => 
+        task && task._internalRenderTask && task._internalRenderTask.canvas === canvas
+      );
+      
+      if (isCanvasInUse) {
+        console.warn(`Canvas for page ${pageNum} is already in use, skipping render`);
+        pageInfo.rendering = false;
+        return;
+      }
+      
       const renderContext = {
         canvasContext: context,
         viewport: viewport,
       };
       
+      // Create a new render task and store it immediately
       const renderTask = page.render(renderContext);
       renderTasksRef.current.set(pageNum, renderTask);
       
+      // Wait for render completion with proper error handling
       try {
         await renderTask.promise;
-      } catch (error) {
-        if (error.name === 'RenderingCancelledException') {
-          // Rendering was cancelled, this is expected
+      } catch (renderError) {
+        // If render was cancelled, clean up and return
+        if (renderError && typeof renderError === 'object' && 'name' in renderError && 
+            renderError.name === 'RenderingCancelledException') {
+          pageInfo.rendering = false;
+          renderTasksRef.current.delete(pageNum);
           return;
         }
-        throw error;
+        throw renderError;
       }
       
       // Render text layer using official PDF.js TextLayer class
@@ -463,7 +490,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       annotationLayer.style.height = viewport.height + 'px';
       
       if (annotations.length > 0) {
-        annotations.forEach((annotation: any) => {
+        annotations.forEach((annotation: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
           if (annotation.subtype === 'Link') {
             const linkDiv = document.createElement('div');
             linkDiv.className = 'linkAnnotation';
@@ -489,45 +516,39 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       
       pageInfo.rendered = true;
       pageInfo.rendering = false;
-      pageInfo.scale = renderScale;
+      pageInfo.scale = currentZoomScale;
+      pageInfo.rotation = rotation;
       renderTasksRef.current.delete(pageNum);
+      
+      // Process next item in queue
+      if (renderQueueRef.current.size > 0) {
+        const nextPageNum = renderQueueRef.current.values().next().value;
+        if (nextPageNum !== undefined) {
+          renderQueueRef.current.delete(nextPageNum);
+          // Use setTimeout with a small delay to avoid conflicts
+          setTimeout(() => renderPage(nextPageNum), 10);
+        }
+      }
       
     } catch (err) {
       pageInfo.rendering = false;
-      if (err instanceof Error && err.name === 'RenderingCancelledException') {
+      renderTasksRef.current.delete(pageNum);
+      console.error(`Error rendering page ${pageNum}:`, err);
+      if (err instanceof Error && err.message.includes('cancelled')) {
         return;
       }
-      console.error(`Error rendering page ${pageNum}:`, err);
-      renderTasksRef.current.delete(pageNum);
+      
+      // Process next item in queue even on error
+      if (renderQueueRef.current.size > 0) {
+        const nextPageNum = renderQueueRef.current.values().next().value;
+        if (nextPageNum !== undefined) {
+          renderQueueRef.current.delete(nextPageNum);
+          setTimeout(() => renderPage(nextPageNum), 10);
+        }
+      }
     }
   }, [pdfDoc, scale, zoomSelect, rotation]);
 
-  // Optimized render page function with smart scheduling
-  const debouncedRenderPage = useCallback((pageNum: number) => {
-    // Clear any existing timeout for this page
-    const existingTimeout = renderTimeoutsRef.current.get(pageNum);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-    }
-    
-    // Render first 5 pages immediately for better UX
-    if (pageNum <= 5) {
-      renderPageInternal(pageNum);
-    } else {
-      // Use requestAnimationFrame for smoother rendering
-      const timeout = setTimeout(() => {
-        requestAnimationFrame(() => {
-          renderPageInternal(pageNum);
-        });
-        renderTimeoutsRef.current.delete(pageNum);
-      }, 16); // ~60fps timing
-      
-      renderTimeoutsRef.current.set(pageNum, timeout);
-    }
-  }, [renderPageInternal]);
-
-  // Memoize the debounced function dependencies
-  const renderPage = debouncedRenderPage;
   
   // Apply highlights to page using provided highlights array
   const applyHighlightsToPage = useCallback((pageNum: number, highlightsArray: Highlight[]) => {
@@ -544,14 +565,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     const fragment = document.createDocumentFragment();
     
     pageHighlights.forEach((highlight) => {
-      highlight.rects.forEach((rect, rectIndex) => {
+      highlight.rects.forEach((rect) => {
         const highlightDiv = document.createElement('div');
         highlightDiv.className = 'highlight';
         highlightDiv.setAttribute('data-highlight-id', highlight.id);
         highlightDiv.title = `"${highlight.text}" - Right-click to delete`;
         
-        // Optimized inline styles with click detection
-        highlightDiv.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px;background-color:${highlight.color};opacity:0.6;pointer-events:auto;z-index:4;cursor:pointer;border:1px solid ${highlight.color};border-opacity:0.8;`;
+        // Optimized inline styles with click detection - lighter opacity for better readability
+        highlightDiv.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px;background-color:${highlight.color};opacity:0.3;pointer-events:auto;z-index:4;cursor:pointer;border:1px solid ${highlight.color};border-opacity:0.8;`;
         
         // Add right-click handler for deletion
         highlightDiv.addEventListener('contextmenu', (e) => {
@@ -577,9 +598,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     applyHighlightsToPage(pageNum, highlights);
   }, [highlights, applyHighlightsToPage]);
   
-  // Optimized text selection handler
+  // Handle text selection
   const handleTextSelection = useCallback(() => {
-    // Debounced selection handling if needed
+    // Text selection tracking is handled by context menu
   }, []);
   
   // Handle context menu
@@ -647,7 +668,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       if (rects.length === 0) return;
       
       const highlight: Highlight = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
         pageNumber: pageNum,
         rects,
         color,
@@ -655,14 +676,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
         timestamp: new Date(),
       };
       
-      setHighlights(prev => {
-        const newHighlights = [...prev, highlight];
-        // Apply highlights immediately with new array
-        requestAnimationFrame(() => {
-          applyHighlightsToPage(pageNum, newHighlights);
-        });
-        return newHighlights;
-      });
+      setHighlights(prev => [...prev, highlight]);
       
       // Clear selection
       selection.removeAllRanges();
@@ -675,72 +689,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
 
   // Delete highlight
   const deleteHighlight = useCallback((highlightId: string) => {
-    setHighlights(prev => {
-      const updated = prev.filter(h => h.id !== highlightId);
-      // Re-apply highlights to all visible pages
-      requestAnimationFrame(() => {
-        const visiblePages = Array.from(pagesRef.current.keys()).slice(0, 5);
-        visiblePages.forEach(pageNum => {
-          const pageInfo = pagesRef.current.get(pageNum);
-          if (pageInfo && pageInfo.rendered) {
-            applyHighlightsToPage(pageNum, updated);
-          }
-        });
-      });
-      return updated;
-    });
+    setHighlights(prev => prev.filter(h => h.id !== highlightId));
     setContextMenu(null);
   }, []);
   
-  // Setup intersection observer with throttling
-  useEffect(() => {
-    if (!pdfDoc || !viewerRef.current) return;
-    
-    let updateTimeout: NodeJS.Timeout;
-    
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        let topMostVisiblePage = null;
-        let topMostPosition = Infinity;
-        
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const pageNum = parseInt(entry.target.getAttribute('data-page') || '0');
-            if (pageNum > 0) {
-              debouncedRenderPage(pageNum);
-              
-              // Track the topmost visible page for current page updates
-              const rect = entry.boundingClientRect;
-              if (rect.top < topMostPosition && rect.top >= -50) { // Better offset
-                topMostPosition = rect.top;
-                topMostVisiblePage = pageNum;
-              }
-            }
-          }
-        });
-        
-        // Throttle current page updates to reduce glitches
-        if (topMostVisiblePage && topMostVisiblePage !== currentPage) {
-          clearTimeout(updateTimeout);
-          updateTimeout = setTimeout(() => {
-            setCurrentPage(topMostVisiblePage);
-            setPageInput(topMostVisiblePage.toString());
-          }, 100); // 100ms throttle
-        }
-      },
-      {
-        root: viewerRef.current,
-        rootMargin: '50px',
-        threshold: 0.3, // Single threshold for better performance
-      }
-    );
-    
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [pdfDoc, debouncedRenderPage]);
   
   // Create and render all pages
   useEffect(() => {
@@ -748,28 +700,100 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
     
     const viewer = viewerRef.current;
     
-    // Clear existing pages
-    viewer.innerHTML = '';
-    pagesRef.current.clear();
-    
-    // Create all page elements
-    for (let i = 1; i <= totalPages; i++) {
-      const pageInfo = createPageElement(i);
-      viewer.appendChild(pageInfo.container);
-      pagesRef.current.set(i, pageInfo);
+    // Only clear and recreate if we don't have the right number of pages
+    const currentPageCount = pagesRef.current.size;
+    if (currentPageCount !== totalPages) {
+      // Cancel all ongoing renders first
+      renderTasksRef.current.forEach(task => {
+        try {
+          task.cancel();
+        } catch (e) {
+          // Ignore errors
+        }
+      });
+      renderTasksRef.current.clear();
+      renderQueueRef.current.clear();
       
-      // Observe for intersection
-      if (observerRef.current) {
-        observerRef.current.observe(pageInfo.container);
+      // Clear existing pages
+      viewer.innerHTML = '';
+      pagesRef.current.clear();
+      
+      // Create all page elements first
+      for (let i = 1; i <= totalPages; i++) {
+        const pageInfo = createPageElement(i);
+        viewer.appendChild(pageInfo.container);
+        pagesRef.current.set(i, pageInfo);
       }
     }
     
-    // Render first few pages immediately
-    for (let i = 1; i <= Math.min(3, totalPages); i++) {
-      debouncedRenderPage(i);
+    // Set up intersection observer for all pages after they're created
+    if (observerRef.current) {
+      observerRef.current.disconnect();
     }
     
-  }, [pdfDoc, totalPages, debouncedRenderPage]);
+    observerRef.current = new IntersectionObserver(
+      (entries: IntersectionObserverEntry[]) => {
+        let topMostVisiblePage: number | null = null;
+        let topMostPosition = Infinity;
+        
+        entries.forEach(entry => {
+          const pageNum = parseInt(entry.target.getAttribute('data-page') || '0');
+          if (pageNum > 0) {
+            if (entry.isIntersecting) {
+              // Always try to render intersecting pages
+              renderPage(pageNum);
+              
+              // Track the topmost visible page for current page updates
+              const rect = entry.boundingClientRect;
+              const viewerRect = viewerRef.current?.getBoundingClientRect();
+              
+              if (viewerRect) {
+                const relativeTop = rect.top - viewerRect.top;
+                const pageHeight = rect.height;
+                const viewerHeight = viewerRect.height;
+                
+                // Consider a page as "current" if it's in the top half of the viewer
+                const isInTopHalf = relativeTop < viewerHeight / 2 && relativeTop > -pageHeight / 2;
+                const intersectionRatio = entry.intersectionRatio || 0;
+                
+                if (isInTopHalf || (intersectionRatio > 0.3 && relativeTop < topMostPosition)) {
+                  topMostPosition = relativeTop;
+                  topMostVisiblePage = pageNum;
+                }
+              }
+            }
+          }
+        });
+        
+        // Update current page if we found a visible page and it's different
+        if (topMostVisiblePage !== null && topMostVisiblePage !== currentPage) {
+          const pageNumber: number = topMostVisiblePage;
+          setCurrentPage(pageNumber);
+          setPageInput(pageNumber.toString());
+        }
+      },
+      {
+        root: viewerRef.current,
+        rootMargin: '100px', // Reduced margin to be less aggressive
+        threshold: [0.1, 0.3, 0.5],
+      }
+    );
+    
+    // Observe all page containers
+    if (observerRef.current) {
+      pagesRef.current.forEach(pageInfo => {
+        if (observerRef.current) {
+          observerRef.current.observe(pageInfo.container);
+        }
+      });
+    }
+    
+    // Render first few pages immediately for better experience
+    for (let i = 1; i <= Math.min(3, totalPages); i++) {
+      renderPage(i);
+    }
+    
+  }, [pdfDoc, totalPages, renderPage]);
   
   // Re-render pages when scale or rotation changes
   useEffect(() => {
@@ -784,45 +808,45 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
       }
     });
     renderTasksRef.current.clear();
+    renderQueueRef.current.clear();
     
     // Mark all pages as not rendered and reset rendering state
     pagesRef.current.forEach(pageInfo => {
       pageInfo.rendered = false;
       pageInfo.rendering = false;
-      pageInfo.renderKey = undefined;
     });
     
-    // Re-render visible pages
-    const visiblePages = Array.from(pagesRef.current.keys()).slice(0, 5);
-    visiblePages.forEach(pageNum => {
-      debouncedRenderPage(pageNum);
-    });
+    // Re-render only currently visible pages based on currentPage
+    const startPage = Math.max(1, currentPage - 1);
+    const endPage = Math.min(totalPages, currentPage + 2);
     
-  }, [scale, zoomSelect, rotation, debouncedRenderPage]);
+    for (let i = startPage; i <= endPage; i++) {
+      renderPage(i);
+    }
+    
+  }, [pdfDoc, scale, zoomSelect, rotation, renderPage, currentPage, totalPages]);
   
-  // Optimize highlights when they change
+  // Re-apply highlights when they change
   useEffect(() => {
-    if (highlights.length > 0) {
-      // Re-apply highlights to visible pages
-      const visiblePages = Array.from(pagesRef.current.keys()).slice(0, 5);
-      visiblePages.forEach(pageNum => {
-        const pageInfo = pagesRef.current.get(pageNum);
-        if (pageInfo && pageInfo.rendered) {
+    // Re-apply highlights to all rendered pages with a small delay to ensure rendering is complete
+    const timeout = setTimeout(() => {
+      pagesRef.current.forEach((pageInfo, pageNum) => {
+        if (pageInfo.rendered && !pageInfo.rendering) {
           applyHighlights(pageNum);
         }
       });
-    }
+    }, 50);
+    
+    return () => clearTimeout(timeout);
   }, [highlights, applyHighlights]);
   
-  // Text selection listener (optimized)
+  // Add text selection listener
   useEffect(() => {
-    const handleSelection = () => {
-      // Minimal selection tracking if needed
+    document.addEventListener('selectionchange', handleTextSelection);
+    return () => {
+      document.removeEventListener('selectionchange', handleTextSelection);
     };
-    
-    document.addEventListener('selectionchange', handleSelection, { passive: true });
-    return () => document.removeEventListener('selectionchange', handleSelection);
-  }, []);
+  }, [handleTextSelection]);
   
   // Handle zoom change
   const handleZoomChange = (value: string) => {
@@ -1032,12 +1056,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
             ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
             : { top: 0, left: 0 }
         }
+        disableAutoFocus
+        disableEnforceFocus
       >
         {contextMenu?.highlightId ? (
           // Context menu for existing highlights
-          <MenuItem onClick={() => deleteHighlight(contextMenu.highlightId!)}>
+          <MenuItem onClick={() => contextMenu.highlightId && deleteHighlight(contextMenu.highlightId)}>
             <ListItemIcon>
-              <Highlight sx={{ color: 'red' }} />
+              <HighlightIcon sx={{ color: 'red' }} />
             </ListItemIcon>
             <ListItemText>Delete Highlight</ListItemText>
           </MenuItem>
@@ -1046,7 +1072,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = () => {
           <>
             <MenuItem onClick={() => addHighlight(highlightColor)}>
               <ListItemIcon>
-                <Highlight sx={{ color: highlightColor }} />
+                <HighlightIcon sx={{ color: highlightColor }} />
               </ListItemIcon>
               <ListItemText>Highlight</ListItemText>
             </MenuItem>
