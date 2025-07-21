@@ -66,7 +66,7 @@ const TocRenderer: React.FC<TocRendererProps> = ({ items, onItemClick, onItemTog
           </ListItemButton>
         </ListItem>
         {item.items && item.items.length > 0 && (
-          <Collapse in={item.expanded} timeout="auto" unmountOnExit>
+          <Collapse in={item.expanded ?? false} timeout="auto" unmountOnExit>
             <TocRenderer items={item.items} onItemClick={onItemClick} onItemToggle={onItemToggle} currentPage={currentPage} />
           </Collapse>
         )}
