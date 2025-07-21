@@ -141,7 +141,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Tooltip title="Zoom Out">
           <span>
-            <IconButton color="inherit" onClick={() => { const i = zoomOptions.findIndex(o => o.value === zoomSelect); if (i > 0) handleZoomChange(zoomOptions[i - 1].value); }} disabled={zoomSelect === '25'} size="small"><ZoomOut /></IconButton>
+            <IconButton color="inherit" onClick={() => { const i = zoomOptions.findIndex(o => o.value === zoomSelect); if (i > 0) handleZoomChange(zoomOptions[i - 1]?.value || '25'); }} disabled={zoomSelect === '25'} size="small"><ZoomOut /></IconButton>
           </span>
         </Tooltip>
         <FormControl size="small" sx={{ minWidth: 100 }}>
@@ -151,7 +151,7 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
         </FormControl>
         <Tooltip title="Zoom In">
           <span>
-            <IconButton color="inherit" onClick={() => { const i = zoomOptions.findIndex(o => o.value === zoomSelect); if (i < zoomOptions.length - 3) handleZoomChange(zoomOptions[i + 1].value); }} disabled={zoomSelect === '400'} size="small"><ZoomIn /></IconButton>
+            <IconButton color="inherit" onClick={() => { const i = zoomOptions.findIndex(o => o.value === zoomSelect); if (i < zoomOptions.length - 3) handleZoomChange(zoomOptions[i + 1]?.value || '400'); }} disabled={zoomSelect === '400'} size="small"><ZoomIn /></IconButton>
           </span>
         </Tooltip>
       </Box>

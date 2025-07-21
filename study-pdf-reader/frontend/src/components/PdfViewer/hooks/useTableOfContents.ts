@@ -10,7 +10,7 @@ export interface TocItem {
 }
 
 export const useTableOfContents = (
-  pdfDoc: any,
+  _pdfDoc: any,
   setCurrentPage: (page: number) => void,
   setPageInput: (input: string) => void,
   scrollToPage: (page: number) => void
