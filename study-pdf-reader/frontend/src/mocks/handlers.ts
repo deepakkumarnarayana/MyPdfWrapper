@@ -1,12 +1,12 @@
 import { http, HttpResponse } from 'msw';
 import { Book } from '../types/dashboard';
 
+// Mock books data - removed fileUrl since backend storage service handles URL generation
 const mockBooks: Book[] = [
   {
     id: 'book-1',
     title: "Machine Learning Fundamentals",
     fileName: "sample-ml-book.pdf",
-    fileUrl: "/sample-pdfs/sample-ml-book.pdf",
     pages: 'Pages 1-350',
     progress: 65,
     status: 'In Progress',
@@ -22,7 +22,6 @@ const mockBooks: Book[] = [
     id: 'book-2',
     title: "Data Structures & Algorithms",
     fileName: "operating-systems-book.pdf",
-    fileUrl: "/sample-pdfs/operating-systems-book.pdf",
     pages: 'Pages 1-500',
     progress: 30,
     status: 'Started',
@@ -38,7 +37,6 @@ const mockBooks: Book[] = [
     id: 'book-3',
     title: "Advanced React Patterns",
     fileName: "multipage-sample.pdf",
-    fileUrl: "/sample-pdfs/multipage-sample.pdf",
     pages: 'Pages 1-280',
     progress: 85,
     status: 'In Progress',
@@ -54,7 +52,6 @@ const mockBooks: Book[] = [
     id: 'book-4',
     title: "Database Systems Design",
     fileName: "CNSIA.pdf",
-    fileUrl: "/sample-pdfs/CNSIA.pdf",
     pages: 'Pages 1-600',
     progress: 100,
     status: 'Completed',
@@ -214,7 +211,7 @@ export const handlers = [
     });
   }),
 
-  // Books API
+  // Books API - Updated to match backend structure
   http.get('*/api/books', async () => {
     await simulateDelay();
     return HttpResponse.json(mockBooks);
@@ -250,7 +247,7 @@ export const handlers = [
       id: `book-${Date.now()}`,
       title: file.name.replace('.pdf', ''),
       fileName: file.name,
-      fileUrl: `/api/files/${file.name}`,
+      fileUrl: `/sample-pdfs/${file.name}`, // Updated to match mock data pattern
       pages: 'Pages 1-50',
       progress: 0,
       status: 'Started',
@@ -265,6 +262,17 @@ export const handlers = [
     
     mockBooks.push(newBook);
     return HttpResponse.json(newBook);
+  }),
+
+  http.delete('*/api/books/:id', async ({ params }) => {
+    await simulateDelay();
+    const bookIndex = mockBooks.findIndex(b => b.id === params.id);
+    if (bookIndex === -1) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    
+    mockBooks.splice(bookIndex, 1);
+    return HttpResponse.json({ message: 'Book deleted successfully' });
   }),
 
   // Research Papers API
@@ -345,7 +353,7 @@ export const handlers = [
     return HttpResponse.json({ sessionId: `session-${Date.now()}`, message: 'Learning session started' });
   }),
 
-  // PDF file endpoints
+  // Books PDF file endpoints - Updated to match new backend API
   http.get('*/api/books/:id/pdf', async ({ params }) => {
     await simulateDelay();
     const book = mockBooks.find(b => b.id === params.id);
@@ -353,29 +361,77 @@ export const handlers = [
       return new HttpResponse(null, { status: 404 });
     }
     
-    // Use the book's fileUrl directly - much simpler!
-    const pdfPath = book.fileUrl;
+    // Directly use fileName - simulates backend storage service logic
+    const pdfPath = `/sample-pdfs/${book.fileName}`;
     
     try {
       // Fetch the PDF file from the public directory
       const response = await fetch(`${location.origin}${pdfPath}`);
       if (!response.ok) {
+        console.error(`PDF not found: ${pdfPath}`);
         return new HttpResponse(null, { status: 404 });
       }
       
       const pdfBuffer = await response.arrayBuffer();
       
-      // Return the PDF file with proper headers
+      // Return the PDF file with proper headers for inline viewing
       return new HttpResponse(pdfBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Length': pdfBuffer.byteLength.toString(),
+          'Content-Disposition': `inline; filename="${book.fileName}"`,
+          'Cache-Control': 'public, max-age=3600',
         },
       });
     } catch (error) {
       console.error('Error loading PDF:', error);
       return new HttpResponse(null, { status: 500 });
     }
+  }),
+
+  // Additional book-related endpoints
+  http.post('*/api/books/:id/progress', async ({ params, request }) => {
+    await simulateDelay();
+    const bookIndex = mockBooks.findIndex(b => b.id === params.id);
+    if (bookIndex === -1) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    
+    const progressData = await request.json() as { currentPage: number; lastReadPage: number; progress?: number };
+    
+    // Update mock book data with progress
+    mockBooks[bookIndex] = {
+      ...mockBooks[bookIndex],
+      currentPage: progressData.currentPage,
+      lastReadPage: progressData.lastReadPage,
+      progress: progressData.progress || Math.round((progressData.currentPage / mockBooks[bookIndex].totalPages) * 100),
+      updatedAt: new Date().toISOString()
+    };
+    
+    return HttpResponse.json({
+      message: 'Reading progress updated successfully',
+      currentPage: progressData.currentPage,
+      lastReadPage: progressData.lastReadPage,
+      progress: mockBooks[bookIndex].progress
+    });
+  }),
+
+  http.get('*/api/books/:id/metadata', async ({ params }) => {
+    await simulateDelay();
+    const book = mockBooks.find(b => b.id === params.id);
+    if (!book) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    
+    return HttpResponse.json({
+      title: book.title,
+      author: 'Unknown Author', // Mock author
+      pageCount: book.totalPages,
+      fileSize: parseInt(book.fileSize) * 1024 * 1024, // Convert to bytes
+      createdAt: book.createdAt,
+      hasTableOfContents: book.totalPages > 50, // Mock logic
+      bookmarks: [] // Mock empty bookmarks
+    });
   }),
 
   // Mock JSON endpoints
