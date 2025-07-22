@@ -9,24 +9,28 @@ export interface PageRenderInfo {
   rendered: boolean;
   rendering: boolean;
   textContent: any;
+  viewport: any; // Add viewport for coordinate calculations
   annotations: any[];
 }
 
 export interface Highlight {
   id: string;
   pageNumber: number;
-  rects: { x: number; y: number; width: number; height: number }[];
+  quadPoints: number[]; // [x1, y1, x2, y2, x3, y3, x4, y4]
+}
+
+export interface StoredHighlight {
+  id: string;
+  pageNumber: number;
+  rects: Array<{ x: number; y: number; width: number; height: number }>;
   color: string;
   text: string;
   timestamp: Date;
   opacity?: number;
-  thickness?: number;
-  type?: 'text' | 'free';
-  quadPoints?: number[][]; // For precise text selection coordinates
-  outlines?: { x: number; y: number }[][]; // For free-form highlights
-  rotation?: number;
   visible?: boolean;
 }
+
+export type Highlight = StoredHighlight;
 
 export interface HighlightColor {
   name: string;
