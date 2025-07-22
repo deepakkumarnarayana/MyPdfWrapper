@@ -290,6 +290,7 @@ export const PdfViewer: React.FC = () => {
       // Render text layer using official PDF.js TextLayer class
       const textContent = await page.getTextContent();
       pageInfo.textContent = textContent;
+      pageInfo.viewport = viewport; // Store the viewport
       
       // Clear and setup text layer
       textLayer.innerHTML = '';

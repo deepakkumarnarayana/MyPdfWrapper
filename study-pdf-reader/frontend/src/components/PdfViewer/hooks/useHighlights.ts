@@ -1,187 +1,126 @@
 import { useState, useCallback } from 'react';
 import type { MutableRefObject } from 'react';
-import { Highlight, PageRenderInfo, HighlightSettings } from '../types';
+import { StoredHighlight, PageRenderInfo, HighlightSettings } from '../types';
 import { DEFAULT_HIGHLIGHT_SETTINGS } from '../constants';
+import { clientToPagePoint } from '../utils/coordinates';
+
+// Helper to apply a transform to a point
+const applyTransform = (point: [number, number], transform: number[]): [number, number] => {
+  const [x, y] = point;
+  const [a, b, c, d, e, f] = transform;
+  return [a * x + c * y + e, b * x + d * y + f];
+};
 
 export const useHighlights = () => {
-  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [highlights, setHighlights] = useState<StoredHighlight[]>([]);
   const [highlightColor, setHighlightColor] = useState('#FFFF00');
   const [highlightSettings, setHighlightSettings] = useState<HighlightSettings>(DEFAULT_HIGHLIGHT_SETTINGS);
 
-  // Update highlight settings
   const updateHighlightSettings = useCallback((newSettings: Partial<HighlightSettings>) => {
     setHighlightSettings(prev => ({ ...prev, ...newSettings }));
   }, []);
 
-  // Apply highlights to a specific page
   const applyHighlightsToPage = useCallback((
-    pageNum: number, 
-    highlightsArray: Highlight[],
-    pagesRef: MutableRefObject<Map<number, PageRenderInfo>>,
-    onHighlightContextMenu?: (event: globalThis.MouseEvent, highlightId: string, text: string) => void
-  ) => {
-    const pageInfo = pagesRef.current.get(pageNum);
-    if (!pageInfo) return;
-    
-    const pageHighlights = highlightsArray.filter(h => h.pageNumber === pageNum);
-    
-    // Clear existing highlights efficiently
-    const existingHighlights = pageInfo.textLayer.querySelectorAll('.highlight');
-    existingHighlights.forEach(el => el.remove());
-    
-    // If showAll is false, don't render any highlights
-    if (!highlightSettings.showAll) return;
-    
-    // Create document fragment for batch DOM insertion
-    const fragment = document.createDocumentFragment();
-    
-    pageHighlights.forEach((highlight) => {
-      // Skip hidden highlights
-      if (highlight.visible === false && highlight.visible !== undefined) return;
-      
-      highlight.rects.forEach((rect) => {
-        const highlightDiv = document.createElement('div');
-        highlightDiv.className = 'highlight';
-        highlightDiv.setAttribute('data-highlight-id', highlight.id);
-        highlightDiv.title = `"${highlight.text}" - Right-click to delete`;
-        
-        // Use highlight-specific settings or fall back to global settings
-        const opacity = highlight.opacity !== undefined ? highlight.opacity : highlightSettings.opacity * 0.3;
-        const thickness = highlight.thickness !== undefined ? highlight.thickness : highlightSettings.thickness;
-        const color = highlight.color;
-        
-        // Enhanced styles with new settings support
-        const borderWidth = Math.max(1, Math.round(thickness / 8));
-        highlightDiv.style.cssText = `
-          position: absolute;
-          left: ${rect.x}px;
-          top: ${rect.y}px;
-          width: ${rect.width}px;
-          height: ${rect.height}px;
-          background-color: ${color};
-          opacity: ${opacity};
-          pointer-events: auto;
-          z-index: 4;
-          cursor: pointer;
-          border: ${borderWidth}px solid ${color};
-          border-radius: ${Math.min(2, thickness / 4)}px;
-          box-shadow: 0 0 ${thickness / 2}px rgba(0, 0, 0, 0.1);
-          transition: opacity 0.2s ease, transform 0.1s ease;
-        `.replace(/\s+/g, ' ').trim();
-        
-        // Add hover effects
-        highlightDiv.addEventListener('mouseenter', () => {
-          highlightDiv.style.opacity = String(Math.min(1, opacity + 0.2));
-          highlightDiv.style.transform = 'scale(1.02)';
-        });
-        
-        highlightDiv.addEventListener('mouseleave', () => {
-          highlightDiv.style.opacity = String(opacity);
-          highlightDiv.style.transform = 'scale(1)';
-        });
-        
-        // Add right-click handler for deletion if provided
-        if (onHighlightContextMenu) {
-          highlightDiv.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            onHighlightContextMenu(e, highlight.id, highlight.text);
-          });
-        }
-        
-        fragment.appendChild(highlightDiv);
-      });
-    });
-    
-    // Single DOM insertion
-    pageInfo.textLayer.appendChild(fragment);
-  }, [highlightSettings]);
-
-  // Apply highlights to page using current state  
-  const applyHighlights = useCallback((
     pageNum: number,
     pagesRef: MutableRefObject<Map<number, PageRenderInfo>>,
-    onHighlightContextMenu?: (event: globalThis.MouseEvent, highlightId: string, text: string) => void
+    onHighlightContextMenu?: (event: MouseEvent, highlightId: string, text: string) => void
   ) => {
-    applyHighlightsToPage(pageNum, highlights, pagesRef, onHighlightContextMenu);
-  }, [highlights, applyHighlightsToPage]);
+    const pageInfo = pagesRef.current.get(pageNum);
+    if (!pageInfo || !pageInfo.viewport || !pageInfo.annotationLayer) return;
 
-  // Add highlight from text selection
+    const { viewport, annotationLayer } = pageInfo;
+    const highlightsToApply = highlights;
+
+    const containerId = `highlight-container-${pageNum}`;
+    let container = annotationLayer.querySelector(`#${containerId}`);
+    if (container) {
+      container.innerHTML = '';
+    } else {
+      container = document.createElement('div');
+      container.id = containerId;
+      annotationLayer.appendChild(container);
+    }
+
+    if (!highlightSettings.showAll) return;
+
+    highlightsToApply
+      .filter(h => h.pageNumber === pageNum && h.visible !== false)
+      .forEach(highlight => {
+        highlight.rects.forEach((rect) => {
+          const [x1, y1] = applyTransform([rect.x, rect.y], viewport.transform);
+          const [x2, y2] = applyTransform([rect.x + rect.width, rect.y + rect.height], viewport.transform);
+
+          const highlightDiv = document.createElement('div');
+          highlightDiv.className = 'highlight';
+          highlightDiv.setAttribute('data-highlight-id', highlight.id);
+          
+          highlightDiv.style.cssText = `
+            position: absolute;
+            left: ${Math.min(x1, x2)}px;
+            top: ${Math.min(y1, y2)}px;
+            width: ${Math.abs(x2 - x1)}px;
+            height: ${Math.abs(y2 - y1)}px;
+            background-color: ${highlight.color};
+            mix-blend-mode: multiply;
+            pointer-events: auto;
+            cursor: pointer;
+            opacity: ${highlight.opacity ?? highlightSettings.opacity * 0.4};
+          `.replace(/\s+/g, ' ').trim();
+
+          if (onHighlightContextMenu) {
+            highlightDiv.addEventListener('contextmenu', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onHighlightContextMenu(e, highlight.id, highlight.text);
+            });
+          }
+          container!.appendChild(highlightDiv);
+        });
+      });
+  }, [highlights, highlightSettings]);
+
   const addHighlight = useCallback((
     color: string,
     pagesRef: MutableRefObject<Map<number, PageRenderInfo>>
   ) => {
     const selection = window.getSelection();
-    if (!selection || !selection.toString().trim()) return;
-    
-    try {
-      const range = selection.getRangeAt(0);
-      
-      // Find the text layer containing the selection
-      let element = range.commonAncestorContainer;
-      let textLayer: Element | null = null;
-      
-      // Traverse up to find text layer (optimized)
-      while (element && element !== document.body) {
-        if (element.nodeType === Node.ELEMENT_NODE) {
-          const el = element as Element;
-          if (el.classList.contains('textLayer')) {
-            textLayer = el;
-            break;
-          }
-        }
-        element = element.parentNode as Node;
-      }
-      
-      if (!textLayer) return;
-      
-      // Find page container and number
-      const pageContainer = textLayer.closest('.page-container');
-      if (!pageContainer) return;
-      
-      let pageNum = parseInt(pageContainer.getAttribute('data-page') || '0');
-      if (pageNum === 0) {
-        const foundPage = Array.from(pagesRef.current.entries()).find(([, info]) => 
-          info.textLayer === textLayer
-        );
-        if (!foundPage) return;
-        pageNum = foundPage[0];
-      }
-      
-      // Calculate highlight rectangles
-      const textLayerRect = textLayer.getBoundingClientRect();
-      const rects = Array.from(range.getClientRects()).map(rect => ({
-        x: rect.left - textLayerRect.left,
-        y: rect.top - textLayerRect.top,
-        width: rect.width,
-        height: rect.height,
-      }));
-      
-      if (rects.length === 0) return;
-      
-      const highlight: Highlight = {
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-        pageNumber: pageNum,
-        rects,
-        color,
-        text: selection.toString().trim(),
-        timestamp: new Date(),
-        opacity: highlightSettings.opacity,
-        thickness: highlightSettings.thickness,
-        type: 'text',
-        visible: true,
+    if (!selection || selection.isCollapsed) return;
+
+    const range = selection.getRangeAt(0);
+    const pageContainer = range.commonAncestorContainer.parentElement?.closest('.page-container');
+    if (!pageContainer) return;
+
+    const pageNum = parseInt(pageContainer.getAttribute('data-page') || '0', 10);
+    const pageInfo = pagesRef.current.get(pageNum);
+    if (!pageInfo) return;
+
+    const rects = Array.from(range.getClientRects()).map(clientRect => {
+      const { x: x1, y: y1 } = clientToPagePoint(pageInfo, clientRect.left, clientRect.top);
+      const { x: x2, y: y2 } = clientToPagePoint(pageInfo, clientRect.right, clientRect.bottom);
+      return {
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        width: Math.abs(x2 - x1),
+        height: Math.abs(y2 - y1),
       };
-      
-      setHighlights(prev => [...prev, highlight]);
-      
-      // Clear selection
-      selection.removeAllRanges();
-      
-    } catch (error) {
-      console.error('Error adding highlight:', error);
-    }
+    });
+
+    if (rects.length === 0) return;
+
+    const newHighlight: StoredHighlight = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+      pageNumber: pageNum,
+      rects,
+      color,
+      text: selection.toString(),
+      timestamp: new Date(),
+      visible: true,
+    };
+
+    setHighlights(prev => [...prev, newHighlight]);
+    selection.removeAllRanges();
   }, []);
 
-  // Delete highlight
   const deleteHighlight = useCallback((highlightId: string) => {
     setHighlights(prev => prev.filter(h => h.id !== highlightId));
   }, []);
@@ -192,8 +131,7 @@ export const useHighlights = () => {
     setHighlightColor,
     highlightSettings,
     updateHighlightSettings,
-    applyHighlights,
-    applyHighlightsToPage,
+    applyHighlights: applyHighlightsToPage,
     addHighlight,
     deleteHighlight,
   };

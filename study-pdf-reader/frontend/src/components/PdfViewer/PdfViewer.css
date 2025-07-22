@@ -77,3 +77,17 @@
   border: 1px solid rgba(255, 200, 0, 0.8);
   cursor: pointer;
 }
+/*
+ * Fix for highlight alignment issue.
+ * The <mark> tag adds its own padding which disrupts the text layer's
+ * precise positioning. This CSS neutralizes the <mark> tag's layout
+ * effects, so it only adds a background color.
+ */
+.textLayer > span.highlight {
+  padding: 0;
+  margin: 0;
+  line-height: inherit;
+  background-color: yellow; /* Default color, will be overridden by inline style */
+  color: inherit;
+}
+
