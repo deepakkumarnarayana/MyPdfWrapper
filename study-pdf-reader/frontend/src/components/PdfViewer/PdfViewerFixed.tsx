@@ -146,6 +146,20 @@ export const PdfViewer: React.FC = () => {
     };
   }, []);
 
+  // Create a stable reference to applyHighlights to prevent renderPage from changing unnecessarily  
+  const applyHighlightsRef = useRef(applyHighlights);
+  const handleHighlightContextMenuRef = useRef(handleHighlightContextMenu);
+  
+  // Update refs when functions change
+  useEffect(() => {
+    applyHighlightsRef.current = applyHighlights;
+    handleHighlightContextMenuRef.current = handleHighlightContextMenu;
+  });
+  
+  const stableApplyHighlights = useCallback((pageNum: number, pagesRef: any) => {
+    applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current);
+  }, []); // No dependencies - stable reference
+
   // Render page with improved performance
   const renderPage = useCallback(async (pageNum: number, priority: 'high' | 'normal' = 'normal') => {
     if (!pdfDoc) return;
@@ -294,7 +308,7 @@ export const PdfViewer: React.FC = () => {
           }).promise;
           
           // Apply existing highlights after text layer is rendered
-          requestAnimationFrame(() => applyHighlights(pageNum, pagesRef, handleHighlightContextMenu));
+          requestAnimationFrame(() => stableApplyHighlights(pageNum, pagesRef));
         } else {
           console.error('renderTextLayer not available');
         }
@@ -333,7 +347,7 @@ export const PdfViewer: React.FC = () => {
       }
       
       // Apply highlights
-      applyHighlights(pageNum, pagesRef, handleHighlightContextMenu);
+      stableApplyHighlights(pageNum, pagesRef);
       
       pageInfo.rendered = true;
       pageInfo.rendering = false;
@@ -356,6 +370,7 @@ export const PdfViewer: React.FC = () => {
         const nextPageNum = renderQueueRef.current.values().next().value;
         if (nextPageNum !== undefined) {
           renderQueueRef.current.delete(nextPageNum);
+          
           console.log(`🔄 [RENDER DEBUG] Processing queued page ${nextPageNum} (${renderQueueRef.current.size} remaining)`);
           // Reduced delay for faster processing
           setTimeout(() => renderPage(nextPageNum), 5);
@@ -386,12 +401,13 @@ export const PdfViewer: React.FC = () => {
         const nextPageNum = renderQueueRef.current.values().next().value;
         if (nextPageNum !== undefined) {
           renderQueueRef.current.delete(nextPageNum);
+          
           console.log(`🔄 [RENDER DEBUG] Processing queued page ${nextPageNum} after error (${renderQueueRef.current.size} remaining)`);
           setTimeout(() => renderPage(nextPageNum), 5);
         }
       }
     }
-  }, [pdfDoc, scale, zoomSelect, rotation, applyHighlights, handleHighlightContextMenu]);
+  }, [pdfDoc, scale, zoomSelect, rotation, stableApplyHighlights]);
 
   const goToPreviousPage = () => {
     if (currentPage > 1) {
@@ -466,7 +482,7 @@ export const PdfViewer: React.FC = () => {
     };
   }, []);
 
-  // Optimized scroll event handling with debouncing
+  // Optimized scroll event handling with debouncing + text selection detection
   useEffect(() => {
     if (!viewerRef.current) return;
     
@@ -589,8 +605,8 @@ export const PdfViewer: React.FC = () => {
       },
       {
         root: viewerRef.current,
-        rootMargin: '100px', // Increased margin for earlier rendering
-        threshold: [0.1, 0.3, 0.5, 0.7], // More thresholds for smoother detection
+        rootMargin: '100px',
+        threshold: [0.1, 0.3, 0.5, 0.7],
       }
     );
     
@@ -751,13 +767,13 @@ export const PdfViewer: React.FC = () => {
     const timeout = setTimeout(() => {
       pagesRef.current.forEach((pageInfo, pageNum) => {
         if (pageInfo.rendered && !pageInfo.rendering) {
-          applyHighlights(pageNum, pagesRef, handleHighlightContextMenu);
+          stableApplyHighlights(pageNum, pagesRef);
         }
       });
     }, 50);
     
     return () => clearTimeout(timeout);
-  }, [highlights, applyHighlights, handleHighlightContextMenu]);
+  }, [highlights, stableApplyHighlights]);
 
   // Restore reading position when book data loads
   useEffect(() => {

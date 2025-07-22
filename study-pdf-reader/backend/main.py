@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from app.database import create_tables
-from app.routers import pdfs, flashcards, health
+from app.routers import pdfs, flashcards, health, books
 
 load_dotenv()
 
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(pdfs.router, prefix="/api")
 app.include_router(flashcards.router, prefix="/api")
+app.include_router(books.router, prefix="/api/books", tags=["books"])
 
 # Serve static files (PDFs)
 project_root = Path(__file__).parent.parent
