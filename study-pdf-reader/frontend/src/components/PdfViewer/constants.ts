@@ -29,9 +29,3 @@ export const RENDER_CONFIG = {
   INTERSECTION_THRESHOLDS: [0.1, 0.3, 0.5],
 };
 
-export const PDF_BOOK_PATHS = {
-  'book-1': '/sample-pdfs/operating-systems-book.pdf',
-  'book-2': '/sample-pdfs/operating-systems-book.pdf',
-  'book-3': '/sample-pdfs/multipage-sample.pdf',
-  'book-4': '/sample-pdfs/sample-ml-book.pdf',
-};

@@ -13,7 +13,7 @@ export interface ButtonProps extends Omit<MuiButtonProps, 'variant'> {
 // Styled button with custom variants
 const StyledButton = styled(MuiButton, {
   shouldForwardProp: (prop) => prop !== 'customVariant' && prop !== 'loading',
-})<{ customVariant?: string; loading?: boolean }>(({ theme, customVariant, loading }) => ({
+})<{ customVariant?: string }>(({ theme, customVariant }) => ({
   position: 'relative',
   textTransform: 'none',
   fontWeight: 500,
@@ -59,12 +59,7 @@ const StyledButton = styled(MuiButton, {
     },
   }),
   
-  // Loading state
-  ...(loading && {
-    '& .MuiButton-startIcon': {
-      marginRight: theme.spacing(1),
-    },
-  }),
+  // Loading styles handled by ButtonContent component
 }));
 
 const ButtonContent = styled('span')<{ loading?: boolean }>(({ loading }) => ({
@@ -87,7 +82,6 @@ export const Button: React.FC<ButtonProps> = ({
       {...props}
       variant="contained"
       customVariant={variant}
-      loading={loading}
       disabled={disabled || loading}
       fullWidth={fullWidth}
       startIcon={loading ? <CircularProgress size={16} color="inherit" /> : icon}

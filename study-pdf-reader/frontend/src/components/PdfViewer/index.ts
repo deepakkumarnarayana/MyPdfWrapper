@@ -14,8 +14,7 @@ export type {
 export { 
   ZOOM_OPTIONS, 
   HIGHLIGHT_COLORS, 
-  RENDER_CONFIG,
-  PDF_BOOK_PATHS 
+  RENDER_CONFIG
 } from './constants';
 
 // Export hooks for potential reuse

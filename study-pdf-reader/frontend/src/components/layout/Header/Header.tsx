@@ -213,6 +213,9 @@ export const Header: React.FC<HeaderProps> = ({
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        disableAutoFocus={true}
+        disableEnforceFocus={true}
+        disableRestoreFocus={true}
       >
         <MenuItem onClick={() => { onProfile?.(); handleClose(); }}>
           <Settings sx={{ mr: 1 }} />
@@ -233,6 +236,9 @@ export const Header: React.FC<HeaderProps> = ({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{ sx: { width: 320, maxHeight: 400 } }}
+        disableAutoFocus={true}
+        disableEnforceFocus={true}
+        disableRestoreFocus={true}
       >
         <Box p={2}>
           <Typography variant="h6" gutterBottom>
