@@ -5,8 +5,8 @@ const mockBooks: Book[] = [
   {
     id: 'book-1',
     title: "Machine Learning Fundamentals",
-    fileName: "ml-fundamentals.pdf",
-    fileUrl: "/api/files/ml-fundamentals.pdf",
+    fileName: "sample-ml-book.pdf",
+    fileUrl: "/sample-pdfs/sample-ml-book.pdf",
     pages: 'Pages 1-350',
     progress: 65,
     status: 'In Progress',
@@ -21,8 +21,8 @@ const mockBooks: Book[] = [
   {
     id: 'book-2',
     title: "Data Structures & Algorithms",
-    fileName: "dsa-book.pdf",
-    fileUrl: "/api/files/dsa-book.pdf",
+    fileName: "operating-systems-book.pdf",
+    fileUrl: "/sample-pdfs/operating-systems-book.pdf",
     pages: 'Pages 1-500',
     progress: 30,
     status: 'Started',
@@ -37,8 +37,8 @@ const mockBooks: Book[] = [
   {
     id: 'book-3',
     title: "Advanced React Patterns",
-    fileName: "react-patterns.pdf",
-    fileUrl: "/api/files/react-patterns.pdf",
+    fileName: "multipage-sample.pdf",
+    fileUrl: "/sample-pdfs/multipage-sample.pdf",
     pages: 'Pages 1-280',
     progress: 85,
     status: 'In Progress',
@@ -53,8 +53,8 @@ const mockBooks: Book[] = [
   {
     id: 'book-4',
     title: "Database Systems Design",
-    fileName: "database-systems.pdf",
-    fileUrl: "/api/files/database-systems.pdf",
+    fileName: "CNSIA.pdf",
+    fileUrl: "/sample-pdfs/CNSIA.pdf",
     pages: 'Pages 1-600',
     progress: 100,
     status: 'Completed',
@@ -182,7 +182,7 @@ export const handlers = [
     });
   }),
 
-  http.get('/auth/notifications', async () => {
+  http.get('*/api/auth/notifications', async () => {
     await simulateDelay();
     return HttpResponse.json({
       data: [
@@ -193,7 +193,7 @@ export const handlers = [
     });
   }),
 
-  http.post('/auth/notifications/:id/read', async ({ params }) => {
+  http.post('*/api/auth/notifications/:id/read', async ({ params }) => {
     await simulateDelay();
     return HttpResponse.json({
       data: { id: params.id, message: 'Welcome to the platform', read: true, timestamp: new Date().toISOString() },
@@ -227,6 +227,18 @@ export const handlers = [
       return new HttpResponse(null, { status: 404 });
     }
     return HttpResponse.json(book);
+  }),
+
+  http.put('*/api/books/:id', async ({ params, request }) => {
+    await simulateDelay();
+    const bookIndex = mockBooks.findIndex(b => b.id === params.id);
+    if (bookIndex === -1) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    
+    const updates = await request.json() as Partial<Book>;
+    mockBooks[bookIndex] = { ...mockBooks[bookIndex], ...updates, updatedAt: new Date().toISOString() } as Book;
+    return HttpResponse.json(mockBooks[bookIndex]);
   }),
 
   http.post('*/api/books', async ({ request }) => {
@@ -341,18 +353,8 @@ export const handlers = [
       return new HttpResponse(null, { status: 404 });
     }
     
-    // Return the appropriate PDF file based on book ID
-    let pdfPath = '/sample-pdfs/sample-ml-book.pdf';
-    
-    if (params.id === 'book-1') {
-      pdfPath = '/sample-pdfs/multipage-sample.pdf';
-    } else if (params.id === 'book-2') {
-      pdfPath = '/sample-pdfs/sample-ml-book.pdf';
-    } else if (params.id === 'book-3') {
-      pdfPath = '/sample-pdfs/multipage-sample.pdf';
-    } else if (params.id === 'book-4') {
-      pdfPath = '/sample-pdfs/sample-ml-book.pdf';
-    }
+    // Use the book's fileUrl directly - much simpler!
+    const pdfPath = book.fileUrl;
     
     try {
       // Fetch the PDF file from the public directory

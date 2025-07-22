@@ -21,6 +21,9 @@ import { useHighlights } from './hooks/useHighlights';
 import { usePdfContextMenu } from './hooks/usePdfContextMenu';
 import { useTableOfContents } from './hooks/useTableOfContents';
 
+// API services
+import { booksApi } from '../../services/api/books.api';
+
 // Components
 import { PdfToolbar } from './components/PdfToolbar';
 import { TableOfContentsDrawer } from './components/TableOfContentsDrawer';
@@ -52,7 +55,7 @@ export const PdfViewer: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   
   // Custom hooks
-  const { pdfDoc, totalPages, isLoading, error } = usePdfLoader(bookId);
+  const { pdfDoc, totalPages, isLoading, error, bookData, lastReadPage } = usePdfLoader(bookId);
   
   const {
     highlights,
@@ -597,22 +600,47 @@ export const PdfViewer: React.FC = () => {
       }
     });
     
-    // Render initial pages with staggered timing for smoother loading
-    const initialPagesToRender = Math.min(5, totalPages);
-    for (let i = 1; i <= initialPagesToRender; i++) {
-      if (i <= 2) {
-        // Render first 2 pages immediately
-        renderPage(i, 'high');
-      } else {
-        // Stagger remaining pages
-        setTimeout(() => renderPage(i, 'normal'), (i - 2) * 100);
+    // Render initial pages - prioritize current/last read page if available
+    const targetPage = lastReadPage && lastReadPage > 1 ? lastReadPage : 1;
+    const isResuming = lastReadPage && lastReadPage > 1;
+    
+    if (isResuming) {
+      // User is resuming - render around the last read page first
+      const startPage = Math.max(1, targetPage - 1);
+      const endPage = Math.min(totalPages, targetPage + 1);
+      
+      // Render current page first (highest priority)
+      renderPage(targetPage, 'high');
+      
+      // Render surrounding pages
+      if (startPage < targetPage) renderPage(startPage, 'normal');
+      if (endPage > targetPage) {
+        setTimeout(() => renderPage(endPage, 'normal'), 50);
+      }
+      
+      // Render initial pages later if they weren't already rendered
+      if (targetPage > 3) {
+        setTimeout(() => {
+          renderPage(1, 'normal');
+          renderPage(2, 'normal');
+        }, 200);
+      }
+    } else {
+      // New reading - render initial pages normally
+      const initialPagesToRender = Math.min(5, totalPages);
+      for (let i = 1; i <= initialPagesToRender; i++) {
+        if (i <= 2) {
+          renderPage(i, 'high');
+        } else {
+          setTimeout(() => renderPage(i, 'normal'), (i - 2) * 100);
+        }
       }
     }
     
     // Extract table of contents
     extractTableOfContents(pdfDoc);
     
-  }, [pdfDoc, totalPages, createPageElement, extractTableOfContents, renderPage]);
+  }, [pdfDoc, totalPages, lastReadPage, createPageElement, extractTableOfContents, renderPage]);
   
   // Track container dimensions to prevent infinite loops
   const containerDimensionsRef = useRef({ width: 0, height: 0 });
@@ -731,6 +759,41 @@ export const PdfViewer: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [highlights, applyHighlights, handleHighlightContextMenu]);
 
+  // Restore reading position when book data loads
+  useEffect(() => {
+    if (bookData && lastReadPage && lastReadPage > 1 && totalPages > 0) {
+      setCurrentPage(lastReadPage);
+      setPageInput(lastReadPage.toString());
+      
+      // Scroll to the last read page with minimal delay (page is already rendered)
+      setTimeout(() => {
+        scrollToPage(lastReadPage);
+      }, 100);
+    }
+  }, [bookData, lastReadPage, totalPages, scrollToPage]);
+
+  // Auto-save reading progress when user changes pages
+  useEffect(() => {
+    if (bookData && bookId && currentPage > 1) {
+      const saveProgress = async () => {
+        try {
+          await booksApi.updateBook(bookId, {
+            lastReadPage: currentPage,
+            currentPage: currentPage,
+            // Update progress percentage based on pages read
+            progress: Math.round((currentPage / totalPages) * 100)
+          });
+        } catch (error) {
+          console.warn('Failed to save reading progress:', error);
+        }
+      };
+      
+      // Debounce progress saving
+      const timeoutId = setTimeout(saveProgress, 2000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [bookData, bookId, currentPage, totalPages]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -833,7 +896,7 @@ export const PdfViewer: React.FC = () => {
     );
   }
   
-  const bookTitle = `PDF Viewer - Book ${bookId}`;
+  const bookTitle = bookData?.title || `PDF Viewer - Book ${bookId}`;
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>

@@ -5,7 +5,10 @@
       "Bash(ls:*)",
       "Bash(rm:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:mozilla.github.io)"
+      "WebFetch(domain:mozilla.github.io)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": []
   }
