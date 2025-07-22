@@ -1,10 +1,17 @@
 import { useState, useCallback } from 'react';
 import type { MutableRefObject } from 'react';
-import { Highlight, PageRenderInfo } from '../types';
+import { Highlight, PageRenderInfo, HighlightSettings } from '../types';
+import { DEFAULT_HIGHLIGHT_SETTINGS } from '../constants';
 
 export const useHighlights = () => {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [highlightColor, setHighlightColor] = useState('#FFFF00');
+  const [highlightSettings, setHighlightSettings] = useState<HighlightSettings>(DEFAULT_HIGHLIGHT_SETTINGS);
+
+  // Update highlight settings
+  const updateHighlightSettings = useCallback((newSettings: Partial<HighlightSettings>) => {
+    setHighlightSettings(prev => ({ ...prev, ...newSettings }));
+  }, []);
 
   // Apply highlights to a specific page
   const applyHighlightsToPage = useCallback((
@@ -22,18 +29,56 @@ export const useHighlights = () => {
     const existingHighlights = pageInfo.textLayer.querySelectorAll('.highlight');
     existingHighlights.forEach(el => el.remove());
     
+    // If showAll is false, don't render any highlights
+    if (!highlightSettings.showAll) return;
+    
     // Create document fragment for batch DOM insertion
     const fragment = document.createDocumentFragment();
     
     pageHighlights.forEach((highlight) => {
+      // Skip hidden highlights
+      if (highlight.visible === false && highlight.visible !== undefined) return;
+      
       highlight.rects.forEach((rect) => {
         const highlightDiv = document.createElement('div');
         highlightDiv.className = 'highlight';
         highlightDiv.setAttribute('data-highlight-id', highlight.id);
         highlightDiv.title = `"${highlight.text}" - Right-click to delete`;
         
-        // Optimized inline styles with click detection - lighter opacity for better readability
-        highlightDiv.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px;background-color:${highlight.color};opacity:0.3;pointer-events:auto;z-index:4;cursor:pointer;border:1px solid ${highlight.color};border-opacity:0.8;`;
+        // Use highlight-specific settings or fall back to global settings
+        const opacity = highlight.opacity !== undefined ? highlight.opacity : highlightSettings.opacity * 0.3;
+        const thickness = highlight.thickness !== undefined ? highlight.thickness : highlightSettings.thickness;
+        const color = highlight.color;
+        
+        // Enhanced styles with new settings support
+        const borderWidth = Math.max(1, Math.round(thickness / 8));
+        highlightDiv.style.cssText = `
+          position: absolute;
+          left: ${rect.x}px;
+          top: ${rect.y}px;
+          width: ${rect.width}px;
+          height: ${rect.height}px;
+          background-color: ${color};
+          opacity: ${opacity};
+          pointer-events: auto;
+          z-index: 4;
+          cursor: pointer;
+          border: ${borderWidth}px solid ${color};
+          border-radius: ${Math.min(2, thickness / 4)}px;
+          box-shadow: 0 0 ${thickness / 2}px rgba(0, 0, 0, 0.1);
+          transition: opacity 0.2s ease, transform 0.1s ease;
+        `.replace(/\s+/g, ' ').trim();
+        
+        // Add hover effects
+        highlightDiv.addEventListener('mouseenter', () => {
+          highlightDiv.style.opacity = String(Math.min(1, opacity + 0.2));
+          highlightDiv.style.transform = 'scale(1.02)';
+        });
+        
+        highlightDiv.addEventListener('mouseleave', () => {
+          highlightDiv.style.opacity = String(opacity);
+          highlightDiv.style.transform = 'scale(1)';
+        });
         
         // Add right-click handler for deletion if provided
         if (onHighlightContextMenu) {
@@ -49,7 +94,7 @@ export const useHighlights = () => {
     
     // Single DOM insertion
     pageInfo.textLayer.appendChild(fragment);
-  }, []);
+  }, [highlightSettings]);
 
   // Apply highlights to page using current state  
   const applyHighlights = useCallback((
@@ -120,6 +165,10 @@ export const useHighlights = () => {
         color,
         text: selection.toString().trim(),
         timestamp: new Date(),
+        opacity: highlightSettings.opacity,
+        thickness: highlightSettings.thickness,
+        type: 'text',
+        visible: true,
       };
       
       setHighlights(prev => [...prev, highlight]);
@@ -141,6 +190,8 @@ export const useHighlights = () => {
     highlights,
     highlightColor,
     setHighlightColor,
+    highlightSettings,
+    updateHighlightSettings,
     applyHighlights,
     applyHighlightsToPage,
     addHighlight,

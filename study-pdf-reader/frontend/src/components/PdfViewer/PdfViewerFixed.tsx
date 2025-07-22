@@ -31,7 +31,7 @@ import { PdfContextMenu } from './components/PdfContextMenu';
 
 // Types and constants
 import { PageRenderInfo } from './types';
-import { ZOOM_OPTIONS, HIGHLIGHT_COLORS } from './constants';
+import { ZOOM_OPTIONS } from './constants';
 
 export const PdfViewer: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
@@ -61,6 +61,8 @@ export const PdfViewer: React.FC = () => {
     highlights,
     highlightColor,
     setHighlightColor,
+    highlightSettings,
+    updateHighlightSettings,
     applyHighlights,
     addHighlight,
     deleteHighlight,
@@ -939,9 +941,9 @@ export const PdfViewer: React.FC = () => {
         handleZoomChange={handleZoomChange}
         rotateLeft={rotateLeft}
         rotateRight={rotateRight}
-        highlightColors={HIGHLIGHT_COLORS}
-        highlightColor={highlightColor}
         setHighlightColor={setHighlightColor}
+        highlightSettings={highlightSettings}
+        updateHighlightSettings={updateHighlightSettings}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
       />

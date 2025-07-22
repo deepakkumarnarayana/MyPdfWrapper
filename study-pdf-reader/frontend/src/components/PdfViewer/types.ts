@@ -19,6 +19,27 @@ export interface Highlight {
   color: string;
   text: string;
   timestamp: Date;
+  opacity?: number;
+  thickness?: number;
+  type?: 'text' | 'free';
+  quadPoints?: number[][]; // For precise text selection coordinates
+  outlines?: { x: number; y: number }[][]; // For free-form highlights
+  rotation?: number;
+  visible?: boolean;
+}
+
+export interface HighlightColor {
+  name: string;
+  value: string;
+  displayName?: string;
+}
+
+export interface HighlightSettings {
+  selectedColor: string;
+  thickness: number;
+  opacity: number;
+  showAll: boolean;
+  defaultColors: HighlightColor[];
 }
 
 export interface ContextMenuState {
