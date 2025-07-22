@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TocItem } from '../hooks/useTableOfContents';
+import { HighlightSettings } from '../types';
 
 interface PdfToolbarProps {
   bookTitle: string;
@@ -20,9 +21,9 @@ interface PdfToolbarProps {
   handleZoomChange: (value: string) => void;
   rotateLeft: () => void;
   rotateRight: () => void;
-  highlightColors: string[];
-  highlightColor: string;
   setHighlightColor: (color: string) => void;
+  highlightSettings: HighlightSettings;
+  updateHighlightSettings: (settings: Partial<HighlightSettings>) => void;
   darkMode: boolean;
   setDarkMode: (darkMode: boolean) => void;
 }
@@ -39,6 +40,12 @@ import {
   Box,
   Chip,
   TextField,
+  Popover,
+  Paper,
+  Slider,
+  FormControlLabel,
+  Switch,
+  Stack,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -54,6 +61,8 @@ import {
   Toc,
   Brightness4,
   Brightness7,
+  ExpandMore,
+  ExpandLess,
 } from '@mui/icons-material';
 
 export const PdfToolbar: React.FC<PdfToolbarProps> = ({
@@ -75,12 +84,26 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
   handleZoomChange,
   rotateLeft,
   rotateRight,
-  highlightColors,
-  highlightColor,
   setHighlightColor,
+  highlightSettings,
+  updateHighlightSettings,
   darkMode,
   setDarkMode,
-}) => (
+}) => {
+  const [highlightMenuAnchor, setHighlightMenuAnchor] = useState<HTMLElement | null>(null);
+  const [expandedHighlight, setExpandedHighlight] = useState(false);
+
+  const handleHighlightMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setHighlightMenuAnchor(event.currentTarget);
+    setExpandedHighlight(!expandedHighlight);
+  };
+
+  const handleCloseHighlightMenu = () => {
+    setHighlightMenuAnchor(null);
+    setExpandedHighlight(false);
+  };
+
+  return (
   <AppBar position="static" elevation={0} sx={{ backgroundColor: '#474747', color: 'white' }}>
     <Toolbar sx={{ minHeight: '48px !important', py: 0 }}>
       <IconButton edge="start" color="inherit" onClick={handleBack} sx={{ mr: 1 }}>
@@ -168,10 +191,133 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
       
       {/* Highlight Controls */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Tooltip title="Highlight Color"><IconButton color="inherit" size="small"><Palette /></IconButton></Tooltip>
-        {highlightColors.map(color => (
-          <Box key={color} sx={{ width: 20, height: 20, backgroundColor: color, border: highlightColor === color ? '2px solid white' : '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', cursor: 'pointer', '&:hover': { opacity: 0.8 } }} onClick={() => setHighlightColor(color)} />
-        ))}
+        <Tooltip title={expandedHighlight ? "Close Highlight Panel" : "Open Highlight Panel"}>
+          <IconButton 
+            color="inherit" 
+            size="small" 
+            onClick={handleHighlightMenuClick}
+            sx={{ 
+              backgroundColor: expandedHighlight ? 'rgba(255,255,255,0.2)' : 'transparent',
+              '&:hover': { backgroundColor: 'rgba(255,255,255,0.3)' }
+            }}
+          >
+            <Palette />
+            {expandedHighlight ? <ExpandLess sx={{ ml: 0.5 }} /> : <ExpandMore sx={{ ml: 0.5 }} />}
+          </IconButton>
+        </Tooltip>
+        
+        {/* Current selected color indicator */}
+        <Box 
+          sx={{ 
+            width: 24, 
+            height: 24, 
+            backgroundColor: highlightSettings.selectedColor, 
+            border: '2px solid white', 
+            borderRadius: '50%',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+          }} 
+        />
+        
+        {/* Highlight Settings Popover */}
+        <Popover
+          open={Boolean(highlightMenuAnchor) && expandedHighlight}
+          anchorEl={highlightMenuAnchor}
+          onClose={handleCloseHighlightMenu}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'center',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'center',
+          }}
+          sx={{ mt: 1 }}
+        >
+          <Paper sx={{ p: 2, minWidth: 280, maxWidth: 320 }}>
+            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+              Highlight Settings
+            </Typography>
+            
+            {/* Color Selection */}
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              Highlight color
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+              {highlightSettings.defaultColors.map(colorOption => (
+                <Tooltip key={colorOption.name} title={colorOption.displayName}>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      backgroundColor: colorOption.value,
+                      border: highlightSettings.selectedColor === colorOption.value 
+                        ? '3px solid #1976d2' 
+                        : '2px solid rgba(0,0,0,0.12)',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      '&:hover': { 
+                        transform: 'scale(1.1)',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                      }
+                    }}
+                    onClick={() => {
+                      updateHighlightSettings({ selectedColor: colorOption.value });
+                      setHighlightColor(colorOption.value);
+                    }}
+                  />
+                </Tooltip>
+              ))}
+            </Stack>
+            
+            {/* Thickness Control */}
+            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+              Thickness
+            </Typography>
+            <Box sx={{ px: 1, mb: 2 }}>
+              <Slider
+                value={highlightSettings.thickness}
+                onChange={(_, value) => updateHighlightSettings({ thickness: value as number })}
+                min={1}
+                max={24}
+                step={1}
+                marks={[
+                  { value: 1, label: '1' },
+                  { value: 12, label: '12' },
+                  { value: 24, label: '24' },
+                ]}
+                valueLabelDisplay="auto"
+                size="small"
+                sx={{
+                  color: highlightSettings.selectedColor,
+                  '& .MuiSlider-thumb': {
+                    backgroundColor: highlightSettings.selectedColor,
+                  },
+                  '& .MuiSlider-track': {
+                    backgroundColor: highlightSettings.selectedColor,
+                  },
+                }}
+              />
+            </Box>
+            
+            {/* Show All Toggle */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={highlightSettings.showAll}
+                  onChange={(e) => updateHighlightSettings({ showAll: e.target.checked })}
+                  size="small"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Show all highlights
+                </Typography>
+              }
+              sx={{ m: 0 }}
+            />
+          </Paper>
+        </Popover>
       </Box>
 
       <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.3)' }} />
@@ -183,4 +329,5 @@ export const PdfToolbar: React.FC<PdfToolbarProps> = ({
       </Tooltip>
     </Toolbar>
   </AppBar>
-);
+  );
+};
