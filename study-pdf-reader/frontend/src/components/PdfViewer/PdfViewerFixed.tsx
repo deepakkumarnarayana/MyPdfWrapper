@@ -146,19 +146,22 @@ export const PdfViewer: React.FC = () => {
     };
   }, []);
 
-  // Create a stable reference to applyHighlights to prevent renderPage from changing unnecessarily  
+  // Create stable references to prevent renderPage from changing unnecessarily
   const applyHighlightsRef = useRef(applyHighlights);
   const handleHighlightContextMenuRef = useRef(handleHighlightContextMenu);
+  const scaleRef = useRef(scale);
+  const zoomSelectRef = useRef(zoomSelect);
+  const rotationRef = useRef(rotation);
   
-  // Update refs when functions change
+  // Update refs when values change
   useEffect(() => {
     applyHighlightsRef.current = applyHighlights;
     handleHighlightContextMenuRef.current = handleHighlightContextMenu;
+    scaleRef.current = scale;
+    zoomSelectRef.current = zoomSelect;
+    rotationRef.current = rotation;
   });
   
-  const stableApplyHighlights = useCallback((pageNum: number, pagesRef: any) => {
-    applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current);
-  }, []); // No dependencies - stable reference
 
   // Render page with improved performance
   const renderPage = useCallback(async (pageNum: number, priority: 'high' | 'normal' = 'normal') => {
@@ -173,16 +176,16 @@ export const PdfViewer: React.FC = () => {
     }
     
     // Calculate the actual render scale first to ensure consistent comparison
-    let renderScale = scale;
+    let renderScale = scaleRef.current;
     const containerDims = containerDimensionsRef.current;
     
-    if (zoomSelect === 'auto' && containerDims.width > 0) {
+    if (zoomSelectRef.current === 'auto' && containerDims.width > 0) {
       const tempPage = await pdfDoc.getPage(pageNum);
-      const viewport = tempPage.getViewport({ scale: 1, rotation });
+      const viewport = tempPage.getViewport({ scale: 1, rotation: rotationRef.current });
       renderScale = containerDims.width / viewport.width;
-    } else if (zoomSelect === 'page-fit' && containerDims.width > 0 && containerDims.height > 0) {
+    } else if (zoomSelectRef.current === 'page-fit' && containerDims.width > 0 && containerDims.height > 0) {
       const tempPage = await pdfDoc.getPage(pageNum);
-      const viewport = tempPage.getViewport({ scale: 1, rotation });
+      const viewport = tempPage.getViewport({ scale: 1, rotation: rotationRef.current });
       renderScale = Math.min(
         containerDims.width / viewport.width,
         containerDims.height / viewport.height
@@ -190,8 +193,8 @@ export const PdfViewer: React.FC = () => {
     }
     
     // Skip if already rendered at current scale and zoom settings
-    const expectedScale = zoomSelect === 'auto' || zoomSelect === 'page-fit' ? 'dynamic' : renderScale;
-    if (pageInfo.rendered && pageInfo.scale === expectedScale && pageInfo.rotation === rotation) {
+    const expectedScale = zoomSelectRef.current === 'auto' || zoomSelectRef.current === 'page-fit' ? 'dynamic' : renderScale;
+    if (pageInfo.rendered && pageInfo.scale === expectedScale && pageInfo.rotation === rotationRef.current) {
       return; // Silent skip for already rendered pages
     }
     
@@ -236,9 +239,9 @@ export const PdfViewer: React.FC = () => {
       if (!context) return;
       
       // Store the actual render scale used for comparison  
-      const actualRenderScale = zoomSelect === 'auto' || zoomSelect === 'page-fit' ? 'dynamic' : renderScale;
+      const actualRenderScale = zoomSelectRef.current === 'auto' || zoomSelectRef.current === 'page-fit' ? 'dynamic' : renderScale;
       
-      const viewport = page.getViewport({ scale: renderScale, rotation });
+      const viewport = page.getViewport({ scale: renderScale, rotation: rotationRef.current });
       
       // Set canvas dimensions
       canvas.width = viewport.width;
@@ -308,7 +311,7 @@ export const PdfViewer: React.FC = () => {
           }).promise;
           
           // Apply existing highlights after text layer is rendered
-          requestAnimationFrame(() => stableApplyHighlights(pageNum, pagesRef));
+          requestAnimationFrame(() => applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current));
         } else {
           console.error('renderTextLayer not available');
         }
@@ -347,20 +350,20 @@ export const PdfViewer: React.FC = () => {
       }
       
       // Apply highlights
-      stableApplyHighlights(pageNum, pagesRef);
+      applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current);
       
       pageInfo.rendered = true;
       pageInfo.rendering = false;
       pageInfo.scale = actualRenderScale;
-      pageInfo.rotation = rotation;
+      pageInfo.rotation = rotationRef.current;
       renderTasksRef.current.delete(pageNum);
       
       console.log(`✅ [RENDER DEBUG] Page ${pageNum} render completed successfully:`, {
         renderTime: Date.now() - renderStartTime,
         scale: actualRenderScale,
         renderScale,
-        zoomSelect,
-        rotation,
+        zoomSelect: zoomSelectRef.current,
+        rotation: rotationRef.current,
         remainingQueue: renderQueueRef.current.size,
         activeRenders: renderTasksRef.current.size
       });
@@ -407,7 +410,7 @@ export const PdfViewer: React.FC = () => {
         }
       }
     }
-  }, [pdfDoc, scale, zoomSelect, rotation, stableApplyHighlights]);
+  }, [pdfDoc]); // Only pdfDoc dependency - all other values use refs
 
   const goToPreviousPage = () => {
     if (currentPage > 1) {
@@ -767,13 +770,13 @@ export const PdfViewer: React.FC = () => {
     const timeout = setTimeout(() => {
       pagesRef.current.forEach((pageInfo, pageNum) => {
         if (pageInfo.rendered && !pageInfo.rendering) {
-          stableApplyHighlights(pageNum, pagesRef);
+          applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current);
         }
       });
     }, 50);
     
     return () => clearTimeout(timeout);
-  }, [highlights, stableApplyHighlights]);
+  }, [highlights]);
 
   // Restore reading position when book data loads
   useEffect(() => {
