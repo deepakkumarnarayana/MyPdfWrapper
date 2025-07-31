@@ -29,6 +29,8 @@ import { PdfToolbar } from './components/PdfToolbar';
 import { TableOfContentsDrawer } from './components/TableOfContentsDrawer';
 import { PdfContextMenu } from './components/PdfContextMenu';
 
+import * as pdfjsLib from 'pdfjs-dist';
+
 // Types and constants
 import { PageRenderInfo } from './types';
 import { ZOOM_OPTIONS } from './constants';
@@ -255,11 +257,15 @@ export const PdfViewer: React.FC = () => {
       pageInfo.container.style.width = viewport.width + 'px';
       pageInfo.container.style.height = viewport.height + 'px';
       
-      // Ensure text layer matches canvas exactly
+      // Ensure text layer matches canvas exactly with proper scaling
+      textLayer.style.position = 'absolute';
       textLayer.style.width = viewport.width + 'px';
       textLayer.style.height = viewport.height + 'px';
       textLayer.style.top = '0px';
       textLayer.style.left = '0px';
+      textLayer.style.transform = 'scale(1)';
+      textLayer.style.transformOrigin = '0 0';
+      textLayer.style.pointerEvents = 'auto';
       
       // Clear and render page
       context.clearRect(0, 0, canvas.width, canvas.height);
@@ -287,39 +293,70 @@ export const PdfViewer: React.FC = () => {
         throw renderError;
       }
       
-      // Render text layer using official PDF.js TextLayer class
-      const textContent = await page.getTextContent();
+      // Render text layer using official PDF.js TextLayer
+      const textContent = await page.getTextContent({
+        includeMarkedContent: true,
+        disableNormalization: true,
+      });
       pageInfo.textContent = textContent;
       
-      // Clear and setup text layer
+      // Clear text layer
       textLayer.innerHTML = '';
       
-      // Set scale factor for PDF.js TextLayer
-      textLayer.style.setProperty('--scale-factor', renderScale.toString());
-      
       try {
-        // Use the renderTextLayer API but ensure proper viewport cloning
-        const pdfjsLib = await import('pdfjs-dist');
+        // Clear existing text layer content
+        textLayer.innerHTML = '';
+        textLayer.className = 'textLayer';
         
-        if (pdfjsLib.renderTextLayer) {
-          // Clone viewport to prevent transformation issues
-          const clonedViewport = viewport.clone({ dontFlip: true });
+        // Manual text layer rendering for consistent selection across zoom levels
+        const textItems = textContent.items;
+        
+        for (let i = 0; i < textItems.length; i++) {
+          const textItem = textItems[i] as any;
+          if (!textItem.str) continue;
           
-          await pdfjsLib.renderTextLayer({
-            textContentSource: textContent,
-            container: textLayer,
-            viewport: clonedViewport,
-            textDivs: [],
-          }).promise;
+          const textSpan = document.createElement('span');
+          textSpan.textContent = textItem.str;
+          textSpan.style.position = 'absolute';
+          textSpan.style.whiteSpace = 'pre';
+          textSpan.style.color = 'transparent';
+          textSpan.style.userSelect = 'text';
+          textSpan.style.pointerEvents = 'auto';
+          textSpan.style.cursor = 'text';
           
-          // Apply existing highlights after text layer is rendered
-          requestAnimationFrame(() => applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current));
-        } else {
-          console.error('renderTextLayer not available');
+          // Calculate position and dimensions using the viewport transform
+          const transform = pdfjsLib.Util.transform(
+            viewport.transform,
+            textItem.transform
+          );
+          
+          const angle = Math.atan2(transform[1], transform[0]);
+          const fontSize = Math.sqrt(transform[2] * transform[2] + transform[3] * transform[3]);
+          
+          textSpan.style.left = `${transform[4]}px`;
+          textSpan.style.top = `${transform[5] - fontSize}px`;
+          textSpan.style.fontSize = `${fontSize}px`;
+          textSpan.style.fontFamily = textItem.fontName || 'sans-serif';
+          
+          if (angle !== 0) {
+            textSpan.style.transform = `rotate(${angle}rad)`;
+            textSpan.style.transformOrigin = '0 0';
+          }
+          
+          textLayer.appendChild(textSpan);
         }
-      } catch (error) {
-        console.error('Failed to render text layer:', error);
+        
+        console.log(`✅ [TEXT LAYER] Manual text layer rendered for page ${pageNum} with ${textItems.length} items`);
+        
+      } catch (err) {
+        console.error('Failed to render text layer:', err);
+        textLayer.innerHTML = '';
       }
+      
+      // Apply existing highlights after text layer is rendered
+      requestAnimationFrame(() => {
+        applyHighlightsRef.current(pageNum, pagesRef, handleHighlightContextMenuRef.current);
+      });
       
       // Render annotation layer
       const annotations = await page.getAnnotations();

@@ -1,16 +1,25 @@
-/* PDF.js compatible text layer CSS */
+/* Enhanced text layer for consistent text selection across zoom levels */
 .textLayer {
   position: absolute;
   text-align: initial;
-  inset: 0;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
   overflow: hidden;
-  opacity: 1;
+  opacity: 0.3;
   line-height: 1;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
   text-size-adjust: none;
   forced-color-adjust: none;
   transform-origin: 0 0;
   z-index: 2;
   pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .textLayer span {
@@ -28,6 +37,35 @@
 
 .textLayer ::selection {
   background: rgba(0, 0, 255, 0.3);
+}
+
+.textLayer ::-moz-selection {
+  background: rgba(0, 0, 255, 0.3);
+}
+
+.textLayer span.textLayer-item {
+  font-synthesis: none;
+  -webkit-font-feature-settings: "kern" off;
+  font-feature-settings: "kern" off;
+  /* Ensure proper text selection behavior */
+  contain: layout style;
+}
+
+.textLayer ::selection {
+  background: rgba(0, 0, 255, 0.3);
+}
+
+.textLayer ::-moz-selection {
+  background: rgba(0, 0, 255, 0.3);
+}
+
+/* Selection highlighting during text selection */
+.textLayer.selecting {
+  user-select: text;
+}
+
+.textLayer .markedContent {
+  position: relative;
 }
 
 .textLayer .endOfContent {
@@ -77,4 +115,91 @@
   z-index: 4;
   border: 1px solid rgba(255, 200, 0, 0.8);
   cursor: pointer;
+  /* Improve highlight rendering */
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.textLayer .highlight:hover {
+  opacity: 0.8;
+  transform: scale(1.02);
+}
+
+/* Hidden canvas for text measurement */
+.hiddenCanvasElement {
+  position: absolute !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Improve performance for large documents */
+.textLayer span[data-font-name] {
+  will-change: transform;
+}
+
+/* Better text rendering on high DPI displays */
+@media (min-resolution: 2dppx) {
+  .textLayer {
+    text-rendering: geometricPrecision;
+  }
+}
+
+/* Better text selection behavior with highlights */
+.textLayer.has-highlights {
+  /* Ensure text selection works properly even with highlights */
+  user-select: text;
+}
+
+.textLayer.has-highlights .highlight {
+  /* Allow text selection through highlights */
+  pointer-events: auto;
+}
+
+.textLayer.has-highlights span {
+  /* Ensure text spans are selectable */
+  pointer-events: auto;
+  user-select: text;
+}
+
+/* Dark mode adjustments */
+.textLayer.dark-mode {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.textLayer.dark-mode .highlight {
+  mix-blend-mode: normal;
+}
+
+/* Performance optimizations */
+.textLayer * {
+  /* Reduce layout thrashing */
+  contain: layout;
+}
+
+.textLayer .highlight[data-rect-index] {
+  /* Optimize highlight rendering */
+  will-change: opacity, transform;
+}
+
+/* Print styles */
+@media print {
+  .textLayer {
+    /* Ensure text remains selectable when printing */
+    color: black !important;
+  }
+  
+  .textLayer span {
+    color: black !important;
+  }
+  
+  .textLayer .highlight {
+    /* Show highlights in print but make them subtle */
+    opacity: 0.3 !important;
+    mix-blend-mode: normal !important;
+  }
 }
