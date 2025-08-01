@@ -45,6 +45,7 @@ export const SessionStatusPanel: React.FC<SessionStatusPanelProps> = ({
     if (!currentSession) return;
 
     const interval = setInterval(() => {
+      // Standard approach - backend sends proper ISO 8601 with 'Z' suffix
       const startTime = new Date(currentSession.started_at);
       const now = new Date();
       const durationMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
@@ -60,9 +61,10 @@ export const SessionStatusPanel: React.FC<SessionStatusPanelProps> = ({
   }, [currentSession, currentPage]);
 
   const formatDuration = (minutes: number): string => {
-    const hrs = Math.floor(minutes / 60);
-    const mins = Math.floor(minutes % 60);
-    const secs = Math.floor((minutes % 1) * 60);
+    const totalSeconds = Math.floor(minutes * 60);
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
     
     if (hrs > 0) {
       return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;

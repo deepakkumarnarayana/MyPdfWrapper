@@ -1,6 +1,6 @@
 import os
 import uuid
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 from fastapi import UploadFile
 from typing import Dict, Any
 from pathlib import Path

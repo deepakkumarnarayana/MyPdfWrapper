@@ -94,6 +94,7 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({
   };
 
   const formatDate = (dateString: string): string => {
+    // Standard approach - backend sends proper ISO 8601 format
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
@@ -103,7 +104,12 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({
     } else if (diffInHours < 48) {
       return 'Yesterday';
     } else {
-      return date.toLocaleDateString();
+      // Display in user's local timezone
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
     }
   };
 
