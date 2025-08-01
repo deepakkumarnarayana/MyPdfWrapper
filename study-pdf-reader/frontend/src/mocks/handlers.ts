@@ -1,6 +1,10 @@
 import { http, HttpResponse, passthrough } from 'msw';
 import { Book } from '../types/dashboard';
 
+// Mock session storage
+let mockSessionId = 1;
+const mockSessionStorage: Record<string, any> = {};
+
 // Mock books data - removed fileUrl since backend storage service handles URL generation
 const mockBooks: Book[] = [
   {
@@ -453,5 +457,106 @@ export const handlers = [
   http.get('/mock/sessions.json', async () => {
     await simulateDelay();
     return HttpResponse.json(mockSessions);
+  }),
+
+  // Sessions API for reading session tracking
+  http.post('/api/sessions', async ({ request }) => {
+    await simulateDelay(100); // Faster for session tracking
+    
+    const sessionData = await request.json() as {
+      pdf_id: number;
+      start_page?: number;
+      session_type?: string;
+    };
+    
+    const newSession = {
+      id: mockSessionId++,
+      pdf_id: sessionData.pdf_id,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      start_page: sessionData.start_page || 1,
+      end_page: null,
+      pages_read: 0,
+      flashcards_reviewed: 0,
+      correct_answers: 0,
+      total_time_minutes: 0,
+      session_type: sessionData.session_type || 'reading'
+    };
+    
+    mockSessionStorage[newSession.id] = newSession;
+    
+    return HttpResponse.json(newSession);
+  }),
+
+  http.put('/api/sessions/:sessionId', async ({ params, request }) => {
+    await simulateDelay(100);
+    
+    const sessionId = params.sessionId as string;
+    const updates = await request.json() as {
+      end_page?: number;
+      ended_at?: string;
+      flashcards_reviewed?: number;
+      correct_answers?: number;
+    };
+    
+    const session = mockSessionStorage[sessionId];
+    if (!session) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    
+    // Update session
+    if (updates.end_page !== undefined) {
+      session.end_page = updates.end_page;
+      // Calculate pages read
+      if (session.start_page && updates.end_page) {
+        session.pages_read = Math.max(0, updates.end_page - session.start_page + 1);
+      }
+    }
+    
+    if (updates.ended_at) {
+      session.ended_at = updates.ended_at;
+      // Calculate total time
+      const startTime = new Date(session.started_at);
+      const endTime = new Date(updates.ended_at);
+      session.total_time_minutes = Math.floor((endTime.getTime() - startTime.getTime()) / 60000);
+    }
+    
+    if (updates.flashcards_reviewed !== undefined) {
+      session.flashcards_reviewed = updates.flashcards_reviewed;
+    }
+    
+    if (updates.correct_answers !== undefined) {
+      session.correct_answers = updates.correct_answers;
+    }
+    
+    mockSessionStorage[sessionId] = session;
+    
+    return HttpResponse.json(session);
+  }),
+
+  http.get('/api/sessions', async ({ request }) => {
+    await simulateDelay();
+    
+    const url = new URL(request.url);
+    const pdfId = url.searchParams.get('pdf_id');
+    const sessionType = url.searchParams.get('session_type');
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    
+    let sessions = Object.values(mockSessionStorage);
+    
+    if (pdfId) {
+      sessions = sessions.filter(session => session.pdf_id === parseInt(pdfId));
+    }
+    
+    if (sessionType) {
+      sessions = sessions.filter(session => session.session_type === sessionType);
+    }
+    
+    // Sort by started_at desc and limit
+    sessions = sessions
+      .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+      .slice(0, limit);
+    
+    return HttpResponse.json(sessions);
   }),
 ];
