@@ -1,5 +1,5 @@
-// Export the fixed refactored PdfViewer component
-export { PdfViewer } from './PdfViewerFixed';
+// Export the minimal native PDF.js viewer (only 5 files!)
+export { MinimalNativePdfViewer as PdfViewer } from './MinimalNativePdfViewer';
 
 // Export types for external use
 export type { 
