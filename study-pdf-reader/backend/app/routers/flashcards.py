@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models import Flashcard, PDF
-from app.schemas import FlashcardResponse, FlashcardCreate
+from app.schemas.flashcards import FlashcardResponse, FlashcardCreate
 from app.services.flashcard_service import FlashcardService
 from typing import List, Optional
 

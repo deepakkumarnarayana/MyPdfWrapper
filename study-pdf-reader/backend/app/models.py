@@ -14,6 +14,7 @@ class PDF(Base):
     author = Column(String, nullable=True)
     page_count = Column(Integer, nullable=True)
     file_size = Column(Integer, nullable=True)
+    storage_provider = Column(String, nullable=False, server_default="local", default="local")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     

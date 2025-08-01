@@ -45,7 +45,8 @@ export const useDashboardData = () => {
     setData(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const [books, researchPapers, sessions, aiProviders, systemServices, stats] = await Promise.all([
+      // Use Promise.allSettled to handle individual API failures gracefully
+      const results = await Promise.allSettled([
         booksApi.getBooks(),
         researchPapersApi.getResearchPapers(),
         sessionsApi.getSessions(),
@@ -54,21 +55,37 @@ export const useDashboardData = () => {
         systemApi.getStats(),
       ]);
 
+      // Helper to extract data or return a default value on failure
+      const getDataOrDefault = <T>(result: PromiseSettledResult<T>, defaultValue: T): T => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        }
+        // Log the error for debugging but don't let it break the dashboard
+        console.error('API call failed:', result.reason);
+        return defaultValue;
+      };
+
       setData({
-        books,
-        researchPapers,
-        sessions,
-        aiProviders,
-        systemServices,
-        stats,
+        books: getDataOrDefault(results[0], []),
+        researchPapers: getDataOrDefault(results[1], []),
+        sessions: getDataOrDefault(results[2], []),
+        aiProviders: getDataOrDefault(results[3], []),
+        systemServices: getDataOrDefault(results[4], []),
+        stats: getDataOrDefault(results[5], {
+          totalTime: '0h 0m',
+          cardsGenerated: '0',
+          sessionsCompleted: '0',
+          booksRead: '0',
+        }),
         isLoading: false,
-        error: null,
+        error: null, // No critical error since we are handling failures gracefully
       });
     } catch (error) {
+      // This catch block will now only handle unexpected critical errors
       setData(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to load data',
+        error: error instanceof Error ? error.message : 'Failed to load critical data',
       }));
     }
   }, []);
