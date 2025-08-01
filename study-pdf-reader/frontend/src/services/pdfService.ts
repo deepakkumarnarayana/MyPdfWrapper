@@ -69,6 +69,16 @@ export const pdfService = {
     await api.delete(`/flashcards/${id}`)
   },
 
+  async getBooks(): Promise<any[]> {
+    const response = await api.get('/books');
+    return response.data;
+  },
+
+  async getBookPdfUrl(bookId: string): Promise<string> {
+    const response = await api.get<{ url: string }>(`/books/${bookId}/url`);
+    return response.data.url;
+  },
+
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
     const response = await api.get('/health')
     return response.data

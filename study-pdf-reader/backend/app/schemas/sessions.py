@@ -2,6 +2,23 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
+class StudySessionBase(BaseModel):
+    flashcards_reviewed: int = 0
+    correct_answers: int = 0
+    total_time_minutes: int = 0
+
+class StudySessionCreate(StudySessionBase):
+    pass
+
+class StudySessionResponse(StudySessionBase):
+    id: int
+    pdf_id: int
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
 class SessionCreate(BaseModel):
     pdf_id: int
     start_page: Optional[int] = None
@@ -28,3 +45,10 @@ class SessionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SessionSummary(BaseModel):
+    total_sessions: int
+    total_time_minutes: int
+    total_pages_read: int
+    total_flashcards_reviewed: int
+    overall_flashcard_accuracy: float

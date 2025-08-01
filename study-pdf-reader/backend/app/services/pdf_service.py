@@ -41,23 +41,31 @@ class PDFService:
         }
     
     def _extract_metadata(self, file_path: str) -> Dict[str, Any]:
-        """Extract metadata from PDF file"""
+        """Extract metadata from PDF file path"""
         try:
             doc = fitz.open(file_path)
-            metadata = doc.metadata
-            
-            return {
-                "title": metadata.get("title", "").strip() or None,
-                "author": metadata.get("author", "").strip() or None,
-                "page_count": len(doc)
-            }
+            return self._parse_fitz_metadata(doc)
         except Exception as e:
             print(f"Error extracting metadata from {file_path}: {e}")
-            return {
-                "title": None,
-                "author": None,
-                "page_count": None
-            }
+            return {"title": None, "author": None, "page_count": None}
+
+    def _extract_metadata_from_content(self, content: bytes) -> Dict[str, Any]:
+        """Extract metadata from PDF file content in memory"""
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+            return self._parse_fitz_metadata(doc)
+        except Exception as e:
+            print(f"Error extracting metadata from content: {e}")
+            return {"title": None, "author": None, "page_count": None}
+
+    def _parse_fitz_metadata(self, doc: fitz.Document) -> Dict[str, Any]:
+        """Helper to parse metadata from a fitz Document"""
+        metadata = doc.metadata
+        return {
+            "title": metadata.get("title", "").strip() or None,
+            "author": metadata.get("author", "").strip() or None,
+            "page_count": len(doc)
+        }
     
     def extract_text(self, file_path: str, page_number: int = None) -> str:
         """Extract text from PDF file"""
