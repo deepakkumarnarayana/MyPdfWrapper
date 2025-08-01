@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
@@ -45,6 +45,10 @@ class SessionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        # Ensure datetime fields are serialized as ISO 8601 with timezone
+        json_encoders = {
+            datetime: lambda v: v.isoformat() + 'Z' if v.tzinfo is None else v.isoformat()
+        }
 
 class SessionSummary(BaseModel):
     total_sessions: int
