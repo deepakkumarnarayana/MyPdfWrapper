@@ -1,5 +1,5 @@
-// Export the minimal native PDF.js viewer (only 5 files!)
-export { MinimalNativePdfViewer as PdfViewer } from './MinimalNativePdfViewer';
+// Export the full PDF.js viewer with all features (highlighting, search, sidebar, etc.)
+export { FullPdfViewer as PdfViewer } from './FullPdfViewer';
 
 // Export types for external use
 export type { 
