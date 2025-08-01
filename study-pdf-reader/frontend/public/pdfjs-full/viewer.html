@@ -764,5 +764,54 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
+    
+    <!-- Page tracking script for session management -->
+    <script>
+      (function() {
+        let currentPageNum = 1;
+        
+        function notifyPageChange(pageNum) {
+          if (window.parent && pageNum !== currentPageNum) {
+            currentPageNum = pageNum;
+            try {
+              window.parent.postMessage({
+                type: 'pagechange',
+                page: pageNum
+              }, '*');
+            } catch (e) {
+              console.log('Failed to notify parent of page change:', e);
+            }
+          }
+        }
+        
+        // Wait for PDF.js to be ready
+        function setupPageTracking() {
+          if (window.PDFViewerApplication && window.PDFViewerApplication.eventBus) {
+            // Listen for page changes
+            window.PDFViewerApplication.eventBus.on('pagechanging', function(evt) {
+              notifyPageChange(evt.pageNumber);
+            });
+            
+            // Also listen for initial page load
+            window.PDFViewerApplication.eventBus.on('pagesloaded', function() {
+              const initialPage = window.PDFViewerApplication.page;
+              notifyPageChange(initialPage);
+            });
+            
+            console.log('Session page tracking setup complete');
+          } else {
+            // Retry in 100ms if PDFViewerApplication isn't ready yet
+            setTimeout(setupPageTracking, 100);
+          }
+        }
+        
+        // Start setup when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', setupPageTracking);
+        } else {
+          setupPageTracking();
+        }
+      })();
+    </script>
   </body>
 </html>

@@ -70,9 +70,19 @@ class StudySession(Base):
     pdf_id = Column(Integer, ForeignKey("pdfs.id"), nullable=False)
     started_at = Column(DateTime, server_default=func.now())
     ended_at = Column(DateTime, nullable=True)
+    
+    # Reading session tracking
+    start_page = Column(Integer, nullable=True)
+    end_page = Column(Integer, nullable=True)
+    pages_read = Column(Integer, default=0)
+    
+    # Study tracking (flashcards)
     flashcards_reviewed = Column(Integer, default=0)
     correct_answers = Column(Integer, default=0)
     total_time_minutes = Column(Integer, default=0)
+    
+    # Session type
+    session_type = Column(String, default="reading")  # reading, study, review
     
     # Relationships
     pdf = relationship("PDF")

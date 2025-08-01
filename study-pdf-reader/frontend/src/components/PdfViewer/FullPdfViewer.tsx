@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Typography } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
+import { Box, Button, Typography, Chip } from '@mui/material';
+import { ArrowBack, Timer } from '@mui/icons-material';
+import { readingSessionService, ReadingSession } from '../../services/readingSession.service';
 
 // Simple book to PDF mapping
 const bookPdfMap: Record<string, string> = {
@@ -14,8 +15,90 @@ const bookPdfMap: Record<string, string> = {
 export const FullPdfViewer: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
+  // Session tracking state
+  const [currentSession, setCurrentSession] = useState<ReadingSession | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  const startReadingSession = useCallback(async () => {
+    try {
+      // For now, using a fixed PDF ID - this should come from your book/PDF mapping
+      const pdfId = parseInt(bookId?.replace('book-', '') || '1');
+      
+      const session = await readingSessionService.startSession({
+        pdf_id: pdfId,
+        start_page: 1,
+        session_type: 'reading'
+      });
+      
+      setCurrentSession(session);
+    } catch (error) {
+      console.error('Failed to start reading session:', error);
+    }
+  }, [bookId]);
+
+  const endReadingSession = useCallback(async () => {
+    if (!currentSession) return;
+
+    try {
+      await readingSessionService.endSession(currentSession.id, {
+        end_page: currentPage,
+        ended_at: new Date().toISOString(),
+      });
+      
+      setCurrentSession(null);
+    } catch (error) {
+      console.error('Failed to end reading session:', error);
+    }
+  }, [currentSession, currentPage]);
+
+  // Start reading session when component mounts
+  useEffect(() => {
+    if (bookId) {
+      startReadingSession();
+    }
+  }, [bookId, startReadingSession]);
+
+  // Listen for page changes from PDF.js viewer for session tracking
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin === window.location.origin) {
+        if (event.data && event.data.type === 'pagechange') {
+          const newPage = event.data.page;
+          if (newPage && newPage !== currentPage) {
+            setCurrentPage(newPage);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [currentPage]);
+
+  // End session when component unmounts or user navigates away
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentSession) {
+        endReadingSession();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (currentSession) {
+        endReadingSession();
+      }
+    };
+  }, [currentSession, endReadingSession]);
+
 
   const handleBack = () => {
+    // End session before navigating
+    if (currentSession) {
+      endReadingSession();
+    }
     navigate('/dashboard');
   };
 
@@ -31,6 +114,7 @@ export const FullPdfViewer: React.FC = () => {
   }
 
   // Direct PDF path and full PDF.js viewer with all features
+  // PDF.js handles last read page functionality natively via localStorage
   const pdfPath = `/sample-pdfs/${bookPdfMap[bookId]}`;
   const viewerUrl = `/pdfjs-full/viewer.html?file=${encodeURIComponent(pdfPath)}`;
 
@@ -54,9 +138,24 @@ export const FullPdfViewer: React.FC = () => {
         >
           Back
         </Button>
-        <Typography variant="h6" sx={{ color: 'white' }}>
+        <Typography variant="h6" sx={{ color: 'white', flex: 1 }}>
           {bookPdfMap[bookId]} - Full PDF.js Viewer (All Features)
         </Typography>
+        
+        {/* Session indicator */}
+        {currentSession && (
+          <Chip
+            icon={<Timer />}
+            label={`Reading Session: Page ${currentPage}`}
+            variant="outlined"
+            size="small"
+            sx={{
+              color: 'white',
+              borderColor: 'white',
+              '& .MuiChip-icon': { color: 'white' }
+            }}
+          />
+        )}
       </Box>
 
       {/* Full PDF.js viewer with all features */}
