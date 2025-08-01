@@ -1,0 +1,8 @@
+npm error code ENOENT
+npm error syscall open
+npm error path /mnt/01D7E79FEB78AE50/Projects/MyPdfWrapper/package.json
+npm error errno -2
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/mnt/01D7E79FEB78AE50/Projects/MyPdfWrapper/package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: /home/deepak/.npm/_logs/2025-07-22T17_56_55_154Z-debug-0.log

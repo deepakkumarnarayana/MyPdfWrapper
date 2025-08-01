@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, passthrough } from 'msw';
 import { Book } from '../types/dashboard';
 
 // Mock books data - removed fileUrl since backend storage service handles URL generation
@@ -132,6 +132,11 @@ const simulateDelay = (ms: number = 300) =>
   new Promise(resolve => setTimeout(resolve, Math.random() * ms + 200));
 
 export const handlers = [
+  // PDF.js minimal viewer - bypass MSW (only 5 files!)
+  http.get('*/pdfjs-minimal/*', () => {
+    return passthrough();
+  }),
+
   // Auth API
   http.post('/auth/login', async ({ request }) => {
     await simulateDelay();
