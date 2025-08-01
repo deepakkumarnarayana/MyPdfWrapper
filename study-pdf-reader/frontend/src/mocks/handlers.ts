@@ -132,8 +132,8 @@ const simulateDelay = (ms: number = 300) =>
   new Promise(resolve => setTimeout(resolve, Math.random() * ms + 200));
 
 export const handlers = [
-  // PDF.js minimal viewer - bypass MSW (only 5 files!)
-  http.get('*/pdfjs-minimal/*', () => {
+  // PDF.js full viewer - bypass MSW (complete feature set!)
+  http.get('*/pdfjs-full/*', () => {
     return passthrough();
   }),
 
