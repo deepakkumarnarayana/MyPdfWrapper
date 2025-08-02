@@ -1,7 +1,15 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Float, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.sqlite import JSON  # SQLite JSON support
 from app.database import Base
+import enum
+
+class DocumentType(enum.Enum):
+    BOOK = "book"
+    RESEARCH_PAPER = "research_paper"
+    ARTICLE = "article"
+    MANUAL = "manual"
 
 class PDF(Base):
     __tablename__ = "pdfs"
@@ -11,10 +19,17 @@ class PDF(Base):
     original_filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     title = Column(String, nullable=True)
-    author = Column(String, nullable=True)
+    author = Column(String, nullable=True)  # Keep for backwards compatibility
     page_count = Column(Integer, nullable=True)
     file_size = Column(Integer, nullable=True)
     storage_provider = Column(String, nullable=False, server_default="local", default="local")
+    
+    # New unified document fields
+    document_type = Column(Enum(DocumentType), nullable=False, default=DocumentType.BOOK, index=True)
+    authors = Column(JSON, nullable=True)  # JSON array for multiple authors
+    type_metadata = Column(JSON, nullable=True)  # Type-specific metadata
+    processing_status = Column(String, default="completed", index=True)  # pending, processing, completed, failed
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     

@@ -9,17 +9,17 @@ from typing import List, Optional
 
 router = APIRouter()
 
-@router.post("/pdfs/{pdf_id}/flashcards/generate")
+@router.post("/documents/{document_id}/flashcards/generate")
 async def generate_flashcards(
-    pdf_id: int,
+    document_id: int,
     db: AsyncSession = Depends(get_db)
 ):
     # Check if PDF exists
-    result = await db.execute(select(PDF).where(PDF.id == pdf_id))
+    result = await db.execute(select(PDF).where(PDF.id == document_id))
     pdf = result.scalar_one_or_none()
     
     if not pdf:
-        raise HTTPException(status_code=404, detail="PDF not found")
+        raise HTTPException(status_code=404, detail="Document not found")
     
     flashcard_service = FlashcardService()
     
@@ -31,7 +31,7 @@ async def generate_flashcards(
         flashcards = []
         for flashcard_data in flashcards_data:
             flashcard = Flashcard(
-                pdf_id=pdf_id,
+                pdf_id=document_id,
                 question=flashcard_data["question"],
                 answer=flashcard_data["answer"],
                 page_number=flashcard_data.get("page_number"),
@@ -53,14 +53,14 @@ async def generate_flashcards(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Error generating flashcards: {str(e)}")
 
-@router.get("/pdfs/{pdf_id}/flashcards", response_model=List[FlashcardResponse])
+@router.get("/documents/{document_id}/flashcards", response_model=List[FlashcardResponse])
 async def get_flashcards(
-    pdf_id: int,
+    document_id: int,
     category: Optional[str] = None,
     difficulty: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(Flashcard).where(Flashcard.pdf_id == pdf_id)
+    query = select(Flashcard).where(Flashcard.pdf_id == document_id)
     
     if category:
         query = query.where(Flashcard.category == category)
