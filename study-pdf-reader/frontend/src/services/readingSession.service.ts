@@ -23,6 +23,11 @@ export interface UpdateSessionData {
   ended_at?: string;
 }
 
+export interface SessionProgressData {
+  current_page?: number;
+  last_accessed?: string;
+}
+
 class ReadingSessionService {
   /**
    * Start a new reading session
@@ -144,6 +149,32 @@ class ReadingSessionService {
         timestamp
       });
       throw error;
+    }
+  }
+
+  /**
+   * Update session progress without ending it
+   */
+  async updateSessionProgress(sessionId: number, data: SessionProgressData): Promise<void> {
+    const timestamp = new Date().toISOString();
+    
+    try {
+      await httpClient.patch(`/sessions/${sessionId}/progress`, {
+        ...data,
+        last_accessed: data.last_accessed || timestamp,
+      });
+      
+      console.log(`[SESSION_SERVICE] ${timestamp} - UPDATE_PROGRESS_SUCCESS:`, {
+        session_id: sessionId,
+        current_page: data.current_page,
+      });
+    } catch (error) {
+      console.warn(`[SESSION_SERVICE] ${timestamp} - UPDATE_PROGRESS_ERROR:`, {
+        error: error,
+        session_id: sessionId,
+        data: data,
+      });
+      // Don't throw - progress updates should be non-critical
     }
   }
 
