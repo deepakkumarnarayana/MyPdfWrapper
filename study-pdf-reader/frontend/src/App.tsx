@@ -29,38 +29,40 @@ const App: React.FC = () => {
     }
   }, [isAuthenticated, fetchBooks, fetchSessions, fetchNotifications]);
 
+  // Dashboard layout component to avoid duplication
+  const DashboardLayout: React.FC = () => (
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          pl: sidebarCollapsed ? `${customTheme.custom.sidebar.collapsedWidth}px` : `${customTheme.custom.sidebar.width}px`,
+          transition: customTheme.transitions.create('padding-left'),
+        }}
+      >
+        <Header
+          user={user}
+          isAuthenticated={isAuthenticated}
+          notifications={notifications}
+        />
+        <Dashboard />
+      </Box>
+    </Box>
+  );
+
   return (
     <ThemeProvider theme={customTheme}>
       <CssBaseline />
       <Router>
         <Routes>
-          {/* PDF Viewer Route - Full Screen */}
+          {/* PDF Viewer Route - Full Screen (no sidebar) */}
           <Route path="/pdf/:bookId" element={<PdfViewer />} />
           
-          {/* Dashboard Route - With Sidebar */}
-          <Route path="*" element={
-            <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-              <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-              <Box
-                component="main"
-                sx={{
-                  flexGrow: 1,
-                  pl: sidebarCollapsed ? `${customTheme.custom.sidebar.collapsedWidth}px` : `${customTheme.custom.sidebar.width}px`,
-                  transition: customTheme.transitions.create('padding-left'),
-                }}
-              >
-                <Header
-                  user={user}
-                  isAuthenticated={isAuthenticated}
-                  notifications={notifications}
-                />
-                <Routes>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/" element={<Dashboard />} />
-                </Routes>
-              </Box>
-            </Box>
-          } />
+          {/* Dashboard routes - With Sidebar Layout */}
+          <Route path="/dashboard" element={<DashboardLayout />} />
+          <Route path="/" element={<DashboardLayout />} />
+          <Route path="*" element={<DashboardLayout />} />
         </Routes>
       </Router>
     </ThemeProvider>
