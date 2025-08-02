@@ -33,6 +33,15 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     <link rel="stylesheet" href="viewer.css">
 
+  <!-- Performance Monitor (load first for accurate timing) -->
+  <script src="../pdf-performance-monitor.js"></script>
+  
+  <!-- WASM Path Fix (optimized for production) -->
+  <script src="../pdfjs-wasm-fix.js"></script>
+  
+  <!-- CMYK Color Management Support -->
+  <script src="../pdfjs-cmyk-config.js"></script>
+  
   <script src="viewer.mjs" type="module"></script>
   </head>
 
