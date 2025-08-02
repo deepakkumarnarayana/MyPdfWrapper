@@ -141,3 +141,4 @@ temp/
 *.njsproj
 *.sln
 *.sw?\n# Ignore pdf.js directory\nfrontend/pdf.js/
+reference/
