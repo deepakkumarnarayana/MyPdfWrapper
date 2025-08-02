@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Snackbar, Alert, Chip, CircularProgress } from '@mui/material';
 import { ArrowBack, PlayArrow, Stop, History } from '@mui/icons-material';
@@ -7,6 +7,7 @@ import { pdfService } from '../../services/pdfService';
 import { SessionStatusPanel } from './SessionStatusPanel';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import { NightModeToggle } from './NightModeToggle';
+import { CreateFlashcardModal } from './CreateFlashcardModal';
 import { useUI } from '../../store';
 
 export const FullPdfViewer: React.FC = () => {
@@ -19,22 +20,36 @@ export const FullPdfViewer: React.FC = () => {
   const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
+  // State for manual flashcard creation
+  const [selection, setSelection] = useState<{
+    text: string;
+    position: { top: number; left: number; width: number; height: number; };
+  } | null>(null);
+  const [isFlashcardModalOpen, setIsFlashcardModalOpen] = useState(false);
+  
+  // Session tracking state
+  const [currentSession, setCurrentSession] = useState<ReadingSession | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [sessionNotification, setSessionNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'info' | 'warning' | 'error';
+  }>({ open: false, message: '', severity: 'info' });
+  
   // Track renders to identify React StrictMode double-mounting
   const renderCount = React.useRef(0);
   renderCount.current += 1;
   
-  // Component lifecycle logging (development only)
-  if (import.meta.env.DEV) {
-    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - COMPONENT_RENDER:`, {
+  // Component lifecycle logging (development only) - Reduced frequency
+  if (import.meta.env.DEV && renderCount.current % 10 === 0) {
+    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - RENDER_CHECKPOINT:`, {
       render_count: renderCount.current,
       bookId,
-      location: window.location.href,
-      timestamp: new Date().toISOString(),
-      strict_mode_possible: renderCount.current > 1,
-      loading,
-      initialLoadComplete,
-      hasPdfUrl: !!pdfUrl,
-      hasError: !!error
+      has_session: !!currentSession,
+      session_id: currentSession?.id,
+      current_page: currentPage,
+      loading_state: { loading, initialLoadComplete, hasError: !!error }
     });
   }
 
@@ -71,31 +86,53 @@ export const FullPdfViewer: React.FC = () => {
     };
   }, []); // Empty dependency array - runs only on mount/unmount
 
-  // Session tracking state
-  const [currentSession, setCurrentSession] = useState<ReadingSession | null>(null);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const startSession = useCallback(async () => {
+    try {
+      const pdfId = parseInt(bookId?.replace('book-', '') || '1');
+      const session = await readingSessionService.startSession({
+        pdf_id: pdfId,
+        start_page: 1,
+        session_type: 'reading'
+      });
+      setCurrentSession(session);
+      return session;
+    } catch (error) {
+      console.error('Failed to start session:', error);
+      throw error;
+    }
+  }, [bookId]);
 
-  // Monitor currentSession state changes
+  const endSession = useCallback(async () => {
+    if (!currentSession) return;
+    try {
+      await readingSessionService.endSession(currentSession.id, {
+        end_page: currentPage,
+        ended_at: new Date().toISOString(),
+      });
+      setCurrentSession(null);
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      throw error;
+    }
+  }, [currentSession, currentPage]);
+
+  // Monitor currentSession state changes (debounced for performance)
   useEffect(() => {
-    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - SESSION_STATE_CHANGED:`, {
-      previous_session: 'tracked_in_state',
-      current_session: currentSession ? {
-        id: currentSession.id,
-        pdf_id: currentSession.pdf_id,
-        started_at: currentSession.started_at,
-        ended_at: currentSession.ended_at
-      } : null,
-      bookId,
-      current_page: currentPage,
-      stack_trace: new Error().stack?.split('\n').slice(1, 4).join('\n')
-    });
-  }, [currentSession, bookId, currentPage]);
-  const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [sessionNotification, setSessionNotification] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'info' | 'warning' | 'error';
-  }>({ open: false, message: '', severity: 'info' });
+    if (!import.meta.env.DEV) return;
+    
+    const timeoutId = setTimeout(() => {
+      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - SESSION_STATE_CHANGED:`, {
+        current_session: currentSession ? {
+          id: currentSession.id,
+          pdf_id: currentSession.pdf_id
+        } : null,
+        bookId,
+        current_page: currentPage
+      });
+    }, 500); // Increased debounce time to reduce logging frequency
+    
+    return () => clearTimeout(timeoutId);
+  }, [currentSession?.id, bookId, currentPage]); // Only track session ID changes, not the entire object
 
   useEffect(() => {
     console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PDF_FETCH_EFFECT_TRIGGERED:`, { bookId });
@@ -130,202 +167,75 @@ export const FullPdfViewer: React.FC = () => {
     fetchPdfUrl();
   }, [bookId]);
   
-  const startReadingSession = useCallback(async () => {
-    const timestamp = new Date().toISOString();
-    const caller = new Error().stack?.split('\n')[2]?.trim() || 'manual_user_click';
-    
-    console.log(`[PDF_VIEWER] ${timestamp} - START_SESSION_TRIGGERED:`, {
-      bookId,
-      caller,
-      current_session: currentSession?.id,
-      timestamp
-    });
-    
+  // Memoized callback handlers to prevent re-renders
+  const handleOpenHistory = useCallback(() => {
+    setHistoryModalOpen(true);
+  }, []);
+
+  // Session control with notifications
+  const handleStartSession = useCallback(async () => {
     try {
-      // For now, using a fixed PDF ID - this should come from your book/PDF mapping
-      const pdfId = parseInt(bookId?.replace('book-', '') || '1');
-      
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - START_SESSION_CALLING_SERVICE:`, {
-        bookId,
-        pdfId,
-        start_page: 1,
-        session_type: 'reading'
-      });
-      
-      const session = await readingSessionService.startSession({
-        pdf_id: pdfId,
-        start_page: 1,
-        session_type: 'reading'
-      });
-      
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - START_SESSION_SUCCESS_SETTING_STATE:`, {
-        session_id: session.id,
-        bookId,
-        backend_started_at: session.started_at
-      });
-      
-      setCurrentSession(session);
-      
-      // Show success notification
+      await startSession();
       setSessionNotification({
         open: true,
         message: 'Reading session started! 📚',
         severity: 'success',
       });
-      
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - START_SESSION_COMPLETE`);
     } catch (error) {
-      console.error(`[PDF_VIEWER] ${new Date().toISOString()} - START_SESSION_ERROR:`, { error, bookId });
       setSessionNotification({
         open: true,
         message: 'Failed to start reading session',
         severity: 'error',
       });
     }
-  }, [bookId, currentSession?.id]);
+  }, [startSession]);
 
-  const endReadingSession = useCallback(async () => {
-    const timestamp = new Date().toISOString();
-    const caller = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
-    
-    console.log(`[PDF_VIEWER] ${timestamp} - END_SESSION_TRIGGERED:`, {
-      has_current_session: !!currentSession,
-      session_id: currentSession?.id,
-      current_page: currentPage,
-      caller,
-      timestamp,
-      stack_trace: new Error().stack?.split('\n').slice(1, 8).join('\n')
-    });
-    
-    if (!currentSession) {
-      console.warn(`[PDF_VIEWER] ${new Date().toISOString()} - END_SESSION_NO_CURRENT_SESSION`);
-      return;
-    }
-
+  const handleEndSession = useCallback(async () => {
     try {
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - END_SESSION_CALLING_SERVICE:`, {
-        session_id: currentSession.id,
-        end_page: currentPage,
-        started_at: currentSession.started_at
-      });
-      
-      await readingSessionService.endSession(currentSession.id, {
-        end_page: currentPage,
-        ended_at: new Date().toISOString(),
-      });
-      
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - END_SESSION_SUCCESS_CLEARING_STATE:`, {
-        session_id: currentSession.id
-      });
-      
-      // Calculate basic session info for notification
-      const pagesRead = currentPage - (currentSession.start_page || 1) + 1;
-      
-      setCurrentSession(null);
-      
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - END_SESSION_STATS:`, {
-        session_id: currentSession.id,
-        time_spent_minutes: timeSpentMinutes,
-        time_spent_seconds: timeSpentSeconds,
-        pages_read: pagesRead,
-        start_page: currentSession.start_page,
-        end_page: currentPage
-      });
-      
+      await endSession();
       setSessionNotification({
         open: true,
-        message: `Session ended! Read ${pagesRead} pages 🎉`,
+        message: `Session ended! 🎉`,
         severity: 'success',
       });
-      
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - END_SESSION_COMPLETE`);
     } catch (error) {
-      console.error(`[PDF_VIEWER] ${new Date().toISOString()} - END_SESSION_ERROR:`, { 
-        error, 
-        session_id: currentSession.id,
-        caller
-      });
       setSessionNotification({
         open: true,
         message: 'Failed to end reading session',
         severity: 'error',
       });
     }
-  }, [currentSession, currentPage]);
+  }, [endSession]);
 
   // Removed auto-start - user now controls session start manually
 
-  // Listen for page changes from PDF.js viewer for session tracking
+  // Listen for messages from the PDF.js iframe (for page changes and text selection)
   useEffect(() => {
-    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PAGE_CHANGE_LISTENER_SETUP`);
-    
     const handleMessage = (event: MessageEvent) => {
-      // Only log PDF-related messages, ignore React DevTools and other noise
-      if (event.data?.type === 'pagechange') {
-        console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PAGE_CHANGE_DETECTED:`, {
-          old_page: currentPage,
-          new_page: event.data.page,
-          session_active: !!currentSession
-        });
+      if (event.origin !== window.location.origin) {
+        return; // Ignore messages from other origins
       }
-      
-      if (event.origin === window.location.origin) {
-        if (event.data && event.data.type === 'pagechange') {
-          const newPage = event.data.page;
-          if (newPage && newPage !== currentPage) {
-            setCurrentPage(newPage);
-          }
+
+      const { data } = event;
+      if (data && data.type === 'pagechange') {
+        const newPage = data.page;
+        if (newPage && newPage !== currentPage) {
+          setCurrentPage(newPage);
         }
+      }
+
+      if (data && data.type === 'text-selected') {
+        setSelection({ text: data.text, position: data.position });
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => {
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PAGE_CHANGE_LISTENER_CLEANUP`);
       window.removeEventListener('message', handleMessage);
     };
-  }, [currentPage, currentSession]);
+  }, [currentPage]);
 
-  // End session when component unmounts or user navigates away  
-  useEffect(() => {
-    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - CLEANUP_EFFECT_SETUP:`, {
-      has_current_session: !!currentSession,
-      session_id: currentSession?.id
-    });
-    
-    const handleBeforeUnload = () => {
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - BEFORE_UNLOAD_TRIGGERED`);
-      // End session on page unload/refresh
-      if (currentSession) {
-        console.log(`[PDF_VIEWER] ${new Date().toISOString()} - BEFORE_UNLOAD_ENDING_SESSION:`, {
-          session_id: currentSession.id
-        });
-        endReadingSession();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    // Cleanup function only runs on component unmount
-    return () => {
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - COMPONENT_UNMOUNT_CLEANUP:`, {
-        has_current_session: !!currentSession,
-        session_id: currentSession?.id,
-        reason: 'component_unmount',
-        stack_trace: new Error().stack?.split('\n').slice(1, 3).join('\n')
-      });
-      
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      
-      // End session only on actual component unmount (navigation away)
-      if (currentSession) {
-        console.log(`[PDF_VIEWER] ${new Date().toISOString()} - UNMOUNT_ENDING_SESSION:`, {
-          session_id: currentSession.id
-        });
-        endReadingSession();
-      }
-    };
-  }, []); // Empty dependencies - only run on mount/unmount
+  // beforeunload handling is now managed by the useReadingSession hook
 
   // Handle PDF night mode changes with improved timing and error handling
   useEffect(() => {
@@ -406,7 +316,7 @@ export const FullPdfViewer: React.FC = () => {
     }
   }, [pdfNightMode, bookId]);
 
-  const handleBack = () => {
+  const handleBack = async () => {
     console.log(`[PDF_VIEWER] ${new Date().toISOString()} - HANDLE_BACK_TRIGGERED:`, {
       has_current_session: !!currentSession,
       session_id: currentSession?.id
@@ -415,11 +325,49 @@ export const FullPdfViewer: React.FC = () => {
     // End session before navigating if one is active
     if (currentSession) {
       console.log(`[PDF_VIEWER] ${new Date().toISOString()} - HANDLE_BACK_ENDING_SESSION_BEFORE_NAVIGATION`);
-      endReadingSession();
+      try {
+        await endSession();
+      } catch (error) {
+        console.error('Failed to end session before navigation:', error);
+        // Continue navigation even if session end fails
+      }
     }
     
     console.log(`[PDF_VIEWER] ${new Date().toISOString()} - HANDLE_BACK_NAVIGATING_TO_DASHBOARD`);
     navigate('/dashboard');
+  };
+
+  const handleSaveFlashcard = async (question: string, answer: string) => {
+    if (!bookId || !selection) return;
+
+    try {
+      // This is a placeholder for the actual API call
+      console.log('Saving flashcard:', {
+        pdf_id: parseInt(bookId),
+        question,
+        answer,
+        page_number: currentPage,
+        context_text: selection.text,
+      });
+      
+      // Here you would call your flashcard service:
+      // await flashcardService.createManualFlashcard({ ... });
+
+      setSessionNotification({
+        open: true,
+        message: 'Flashcard created successfully!',
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to create flashcard:', error);
+      setSessionNotification({
+        open: true,
+        message: 'Failed to create flashcard.',
+        severity: 'error',
+      });
+    } finally {
+      setSelection(null); // Hide the button after saving
+    }
   };
 
   // Debug loading condition
@@ -523,7 +471,7 @@ export const FullPdfViewer: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<Stop />}
-            onClick={endReadingSession}
+            onClick={handleEndSession}
             color="error"
             size="small"
             sx={{ minWidth: 120 }}
@@ -534,7 +482,7 @@ export const FullPdfViewer: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<PlayArrow />}
-            onClick={startReadingSession}
+            onClick={handleStartSession}
             color="success"
             size="small"
             sx={{ minWidth: 120 }}
@@ -546,7 +494,7 @@ export const FullPdfViewer: React.FC = () => {
         <Button
           variant="outlined"
           startIcon={<History />}
-          onClick={() => setHistoryModalOpen(true)}
+          onClick={handleOpenHistory}
           sx={{ 
             color: 'white', 
             borderColor: 'white',
@@ -567,7 +515,24 @@ export const FullPdfViewer: React.FC = () => {
             border: 'none',
           }}
           title="PDF Viewer"
+          onLoad={() => setSelection(null)} // Clear selection when iframe reloads
         />
+
+        {selection && (
+          <Button
+            variant="contained"
+            size="small"
+            sx={{
+              position: 'absolute',
+              top: `${selection.position.top + selection.position.height}px`,
+              left: `${selection.position.left}px`,
+              zIndex: 10,
+            }}
+            onClick={() => setIsFlashcardModalOpen(true)}
+          >
+            Create Flashcard
+          </Button>
+        )}
 
         {/* Enhanced Session Status Panel - Only show when session is active */}
         {currentSession && (
@@ -575,17 +540,31 @@ export const FullPdfViewer: React.FC = () => {
             currentSession={currentSession}
             currentPage={currentPage}
             totalPages={300} // This should come from PDF metadata
-            onEndSession={endReadingSession}
-            onOpenHistory={() => setHistoryModalOpen(true)}
+            onEndSession={handleEndSession}
+            onOpenHistory={handleOpenHistory}
           />
         )}
       </Box>
+
+      {/* Flashcard Creation Modal */}
+      {selection && (
+        <CreateFlashcardModal
+          open={isFlashcardModalOpen}
+          onClose={() => {
+            setIsFlashcardModalOpen(false);
+            setSelection(null); // Clear selection when modal is closed
+          }}
+          onSave={handleSaveFlashcard}
+          contextText={selection.text}
+          pageNumber={currentPage}
+        />
+      )}
 
       {/* Session History Modal */}
       <SessionHistoryModal
         open={historyModalOpen}
         onClose={() => setHistoryModalOpen(false)}
-        currentPdfId={currentSession?.pdf_id}
+        currentPdfId={currentSession?.pdf_id || 0}
       />
 
       {/* Session Notifications */}

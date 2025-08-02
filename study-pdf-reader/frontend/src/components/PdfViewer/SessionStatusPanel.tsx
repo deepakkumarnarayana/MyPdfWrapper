@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   Card,
   CardContent,
@@ -29,7 +29,7 @@ interface SessionStatusPanelProps {
   onOpenHistory: () => void;
 }
 
-export const SessionStatusPanel: React.FC<SessionStatusPanelProps> = ({
+const SessionStatusPanelComponent: React.FC<SessionStatusPanelProps> = ({
   currentSession,
   currentPage,
   totalPages = 100,
@@ -260,3 +260,28 @@ export const SessionStatusPanel: React.FC<SessionStatusPanelProps> = ({
     </Fade>
   );
 };
+
+// Memoize the component to prevent unnecessary re-renders
+export const SessionStatusPanel = memo(SessionStatusPanelComponent, (prevProps, nextProps) => {
+  // Focus on data-driven comparison, callbacks should be stable
+  // If callbacks are properly memoized in parent, reference equality will work
+  const sessionEqual = (
+    prevProps.currentSession?.id === nextProps.currentSession?.id &&
+    prevProps.currentSession?.started_at === nextProps.currentSession?.started_at &&
+    prevProps.currentSession?.start_page === nextProps.currentSession?.start_page
+  );
+  
+  const dataEqual = (
+    prevProps.currentPage === nextProps.currentPage &&
+    prevProps.totalPages === nextProps.totalPages
+  );
+  
+  // For callbacks, we rely on parent component to provide stable references
+  // If they change, we need to re-render as the functionality may have changed
+  const callbacksEqual = (
+    prevProps.onEndSession === nextProps.onEndSession &&
+    prevProps.onOpenHistory === nextProps.onOpenHistory
+  );
+  
+  return sessionEqual && dataEqual && callbacksEqual;
+});
