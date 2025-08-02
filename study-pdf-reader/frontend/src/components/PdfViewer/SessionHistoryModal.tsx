@@ -186,7 +186,7 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({
             Sessions for this PDF
           </Typography>
           {loading ? (
-            <LinearProgress />
+            <LinearProgress variant="indeterminate" />
           ) : sessions.length === 0 ? (
             <Typography sx={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', py: 4 }}>
               No sessions found for this PDF
@@ -243,7 +243,7 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({
             Recent Reading Sessions
           </Typography>
           {loading ? (
-            <LinearProgress />
+            <LinearProgress variant="indeterminate" />
           ) : (
             <List>
               {sessions.slice(0, 10).map((session, index) => (

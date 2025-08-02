@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { PDF, Flashcard, FlashcardGenerationResponse } from '../types'
 
-const API_BASE_URL = '/api'
+const API_BASE_URL = '/api/v1'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -23,12 +23,12 @@ api.interceptors.response.use(
 
 export const pdfService = {
   async getAllPDFs(): Promise<PDF[]> {
-    const response = await api.get<PDF[]>('/pdfs')
+    const response = await api.get<PDF[]>('/documents')
     return response.data
   },
 
   async getPDF(id: number): Promise<PDF> {
-    const response = await api.get<PDF>(`/pdfs/${id}`)
+    const response = await api.get<PDF>(`/documents/${id}`)
     return response.data
   },
 
@@ -36,7 +36,7 @@ export const pdfService = {
     const formData = new FormData()
     formData.append('file', file)
     
-    const response = await api.post<PDF>('/pdfs', formData, {
+    const response = await api.post<PDF>('/documents', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -45,17 +45,17 @@ export const pdfService = {
   },
 
   async deletePDF(id: number): Promise<void> {
-    await api.delete(`/pdfs/${id}`)
+    await api.delete(`/documents/${id}`)
   },
 
   async getFlashcards(pdfId: number): Promise<Flashcard[]> {
-    const response = await api.get<Flashcard[]>(`/pdfs/${pdfId}/flashcards`)
+    const response = await api.get<Flashcard[]>(`/documents/${pdfId}/flashcards`)
     return response.data
   },
 
   async generateFlashcards(pdfId: number): Promise<FlashcardGenerationResponse> {
     const response = await api.post<FlashcardGenerationResponse>(
-      `/pdfs/${pdfId}/flashcards/generate`
+      `/documents/${pdfId}/flashcards/generate`
     )
     return response.data
   },
@@ -70,12 +70,12 @@ export const pdfService = {
   },
 
   async getBooks(): Promise<any[]> {
-    const response = await api.get('/books');
+    const response = await api.get('/documents?document_type=book');
     return response.data;
   },
 
   async getBookPdfUrl(bookId: string): Promise<string> {
-    const response = await api.get<{ url: string }>(`/books/${bookId}/url`);
+    const response = await api.get<{ url: string }>(`/documents/${bookId}/url`);
     return response.data.url;
   },
 

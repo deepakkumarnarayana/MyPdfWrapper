@@ -4,13 +4,13 @@ import { httpClient } from '../../http.client';
 
 export class RealBooksApi implements IBooksApi {
   async getBooks(): Promise<Book[]> {
-    const response = await httpClient.get('/books');
+    const response = await httpClient.get('/documents?document_type=book');
     return response.data;
   }
 
   async getBook(id: string): Promise<Book | null> {
     try {
-      const response = await httpClient.get(`/books/${id}`);
+      const response = await httpClient.get(`/documents/${id}`);
       return response.data;
     } catch (error) {
       return null;
@@ -21,7 +21,9 @@ export class RealBooksApi implements IBooksApi {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await httpClient.post('/books', formData, {
+    formData.append('document_type', 'book');
+    
+    const response = await httpClient.post('/documents', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -37,21 +39,22 @@ export class RealBooksApi implements IBooksApi {
   }
 
   async createBook(bookData: Partial<Book>): Promise<{ data: Book }> {
-    const response = await httpClient.post('/books', bookData);
+    const bookDataWithType = { ...bookData, document_type: 'book' };
+    const response = await httpClient.post('/documents', bookDataWithType);
     return { data: response.data };
   }
 
   async updateBook(id: string, updates: Partial<Book>): Promise<{ data: Book }> {
-    const response = await httpClient.put(`/books/${id}`, updates);
+    const response = await httpClient.put(`/documents/${id}`, updates);
     return { data: response.data };
   }
 
   async deleteBook(id: string): Promise<void> {
-    await httpClient.delete(`/books/${id}`);
+    await httpClient.delete(`/documents/${id}`);
   }
 
   async searchBooks(query: string): Promise<{ data: Book[] }> {
-    const response = await httpClient.get('/books/search', {
+    const response = await httpClient.get('/documents/search', {
       params: { q: query }
     });
     return { data: response.data };
