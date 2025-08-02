@@ -142,3 +142,10 @@ temp/
 *.sln
 *.sw?\n# Ignore pdf.js directory\nfrontend/pdf.js/
 reference/
+
+# TypeScript build cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Claude Code local settings
+.claude/settings.local.json
