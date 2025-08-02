@@ -16,20 +16,27 @@ export const FullPdfViewer: React.FC = () => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [bookTitle, setBookTitle] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
   // Track renders to identify React StrictMode double-mounting
   const renderCount = React.useRef(0);
   renderCount.current += 1;
   
-  // Component lifecycle logging
-  console.log(`[PDF_VIEWER] ${new Date().toISOString()} - COMPONENT_RENDER:`, {
-    render_count: renderCount.current,
-    bookId,
-    location: window.location.href,
-    timestamp: new Date().toISOString(),
-    strict_mode_possible: renderCount.current > 1
-  });
+  // Component lifecycle logging (development only)
+  if (import.meta.env.DEV) {
+    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - COMPONENT_RENDER:`, {
+      render_count: renderCount.current,
+      bookId,
+      location: window.location.href,
+      timestamp: new Date().toISOString(),
+      strict_mode_possible: renderCount.current > 1,
+      loading,
+      initialLoadComplete,
+      hasPdfUrl: !!pdfUrl,
+      hasError: !!error
+    });
+  }
 
   // Monitor component mount/unmount lifecycle
   useEffect(() => {
@@ -103,15 +110,17 @@ export const FullPdfViewer: React.FC = () => {
       try {
         console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PDF_FETCH_START:`, { bookId });
         setLoading(true);
+        setError(null); // Clear any previous errors
+        
         const url = await pdfService.getBookPdfUrl(bookId);
         setPdfUrl(url);
-        // You might want to fetch book details here as well
-        // For now, we'll just use the bookId as a placeholder title
         setBookTitle(`Book ${bookId}`);
+        setInitialLoadComplete(true);
         console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PDF_FETCH_SUCCESS:`, { bookId, url });
       } catch (err) {
         console.error(`[PDF_VIEWER] ${new Date().toISOString()} - PDF_FETCH_ERROR:`, { bookId, error: err });
         setError('Failed to load PDF. Please try again later.');
+        setInitialLoadComplete(true);
         console.error('Error fetching PDF URL:', err);
       } finally {
         setLoading(false);
@@ -251,22 +260,18 @@ export const FullPdfViewer: React.FC = () => {
     console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PAGE_CHANGE_LISTENER_SETUP`);
     
     const handleMessage = (event: MessageEvent) => {
-      console.log(`[PDF_VIEWER] ${new Date().toISOString()} - MESSAGE_RECEIVED:`, {
-        origin: event.origin,
-        window_origin: window.location.origin,
-        data_type: event.data?.type,
-        data: event.data
-      });
+      // Only log PDF-related messages, ignore React DevTools and other noise
+      if (event.data?.type === 'pagechange') {
+        console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PAGE_CHANGE_DETECTED:`, {
+          old_page: currentPage,
+          new_page: event.data.page,
+          session_active: !!currentSession
+        });
+      }
       
       if (event.origin === window.location.origin) {
         if (event.data && event.data.type === 'pagechange') {
           const newPage = event.data.page;
-          console.log(`[PDF_VIEWER] ${new Date().toISOString()} - PAGE_CHANGE_DETECTED:`, {
-            old_page: currentPage,
-            new_page: newPage,
-            session_active: !!currentSession
-          });
-          
           if (newPage && newPage !== currentPage) {
             setCurrentPage(newPage);
           }
@@ -322,56 +327,82 @@ export const FullPdfViewer: React.FC = () => {
     };
   }, []); // Empty dependencies - only run on mount/unmount
 
-  // Handle PDF night mode changes
+  // Handle PDF night mode changes with improved timing and error handling
   useEffect(() => {
     console.log(`[PDF_VIEWER] ${new Date().toISOString()} - NIGHT_MODE_CHANGED:`, { 
       pdfNightMode,
       bookId 
     });
 
-    // Apply night mode styling to the PDF iframe
-    const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
-    if (iframe?.contentDocument) {
-      const iframeDoc = iframe.contentDocument;
-      const iframeBody = iframeDoc.body;
-      
-      if (pdfNightMode) {
-        iframeBody.classList.add('pdf-night-mode');
-        // Load night mode CSS if not already loaded
-        if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
-          const link = iframeDoc.createElement('link');
-          link.id = 'pdf-night-mode-styles';
-          link.rel = 'stylesheet';
-          link.href = '/pdf-night-mode.css';
-          iframeDoc.head.appendChild(link);
+    const applyNightMode = (iframe: HTMLIFrameElement, retryCount = 0): void => {
+      try {
+        const iframeDoc = iframe.contentDocument;
+        const iframeWin = iframe.contentWindow;
+        
+        if (!iframeDoc || !iframeWin) {
+          if (retryCount < 10) {
+            setTimeout(() => applyNightMode(iframe, retryCount + 1), 200);
+          }
+          return;
         }
-      } else {
-        iframeBody.classList.remove('pdf-night-mode');
-      }
-    } else {
-      // If iframe is not ready yet, wait and try again
-      const retryApplyNightMode = setTimeout(() => {
-        const retryIframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
-        if (retryIframe?.contentDocument) {
-          const iframeDoc = retryIframe.contentDocument;
-          const iframeBody = iframeDoc.body;
+
+        const iframeBody = iframeDoc.body;
+        
+        if (pdfNightMode) {
+          iframeBody.classList.add('pdf-night-mode');
           
-          if (pdfNightMode) {
-            iframeBody.classList.add('pdf-night-mode');
-            if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
-              const link = iframeDoc.createElement('link');
-              link.id = 'pdf-night-mode-styles';
-              link.rel = 'stylesheet';
-              link.href = '/pdf-night-mode.css';
-              iframeDoc.head.appendChild(link);
+          // Load night mode CSS if not already loaded
+          if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
+            const link = iframeDoc.createElement('link');
+            link.id = 'pdf-night-mode-styles';
+            link.rel = 'stylesheet';
+            link.href = '/pdf-night-mode.css';
+            link.onload = () => {
+              console.log('[PDF_VIEWER] Night mode CSS loaded successfully');
+              // Let CSS filters handle the night mode without forcing canvas re-draw
+              // PDF.js will naturally update when user scrolls or navigates
+            };
+            link.onerror = () => {
+              console.error('[PDF_VIEWER] Failed to load night mode CSS');
+            };
+            iframeDoc.head.appendChild(link);
+          }
+          // CSS already loaded, night mode class will apply filters automatically
+        } else {
+          iframeBody.classList.remove('pdf-night-mode');
+          // CSS filters will be removed automatically, no need to force re-draw
+        }
+      } catch (error) {
+        console.error('[PDF_VIEWER] Cross-origin error applying night mode:', error);
+        if (retryCount < 5) {
+          setTimeout(() => applyNightMode(iframe, retryCount + 1), 500);
+        }
+      }
+    };
+
+    const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
+    if (iframe) {
+      applyNightMode(iframe);
+    } else {
+      // Wait for iframe to load
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          for (const node of mutation.addedNodes) {
+            if (node instanceof HTMLIFrameElement && node.title === 'PDF Viewer') {
+              observer.disconnect();
+              // Wait for iframe content to load
+              node.addEventListener('load', () => {
+                setTimeout(() => applyNightMode(node), 500);
+              });
+              break;
             }
-          } else {
-            iframeBody.classList.remove('pdf-night-mode');
           }
         }
-      }, 1000);
-
-      return () => clearTimeout(retryApplyNightMode);
+      });
+      
+      observer.observe(document.body, { childList: true, subtree: true });
+      
+      return () => observer.disconnect();
     }
   }, [pdfNightMode, bookId]);
 
@@ -391,7 +422,23 @@ export const FullPdfViewer: React.FC = () => {
     navigate('/dashboard');
   };
 
-  if (loading) {
+  // Debug loading condition
+  const shouldShowLoading = loading || (!initialLoadComplete && !error && !pdfUrl);
+  
+  // Only log loading state changes in development
+  if (import.meta.env.DEV) {
+    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - LOADING_CHECK:`, {
+      bookId,
+      loading,
+      initialLoadComplete,
+      error,
+      hasPdfUrl: !!pdfUrl,
+      shouldShowLoading,
+      actualPdfUrl: pdfUrl
+    });
+  }
+
+  if (shouldShowLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -412,8 +459,11 @@ export const FullPdfViewer: React.FC = () => {
   }
 
   // Direct PDF path and full PDF.js viewer with all features
-  // PDF.js handles last read page functionality natively via localStorage
-  const viewerUrl = `/pdfjs-full/viewer.html?file=${encodeURIComponent(pdfUrl || '')}`;
+  // PDF.js handles last read page functionality and CMYK color management natively
+  const viewerParams = new URLSearchParams({
+    file: pdfUrl || ''
+  });
+  const viewerUrl = `/pdfjs-full/viewer.html?${viewerParams.toString()}`;
   
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#525659' }}>
