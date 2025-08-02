@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models import PDF, DocumentType
-from app.schemas.pdfs import PDFResponse, PDFCreate, DocumentResponse, DocumentCreate
+from app.schemas.pdfs import DocumentResponse, DocumentCreate
 from app.services.pdf_service import PDFService
 from typing import List, Optional
 import os
@@ -14,6 +14,7 @@ router = APIRouter()
 async def upload_document(
     file: UploadFile = File(...),
     document_type: DocumentType = Form(DocumentType.BOOK),
+    user_id: int = 1,  # Hardcoded for now
     db: AsyncSession = Depends(get_db)
 ):
     """Upload a document (PDF) - supports both books and research papers"""
@@ -49,6 +50,7 @@ async def upload_document(
         
         # Create database entry with enhanced fields
         pdf = PDF(
+            user_id=user_id,
             filename=pdf_data["filename"],
             original_filename=pdf_data["original_filename"],
             file_path=pdf_data["file_path"],
@@ -72,7 +74,7 @@ async def upload_document(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
-@router.get("/documents", response_model=List[PDFResponse])
+@router.get("/documents", response_model=List[DocumentResponse])
 async def get_documents(
     document_type: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
@@ -101,7 +103,7 @@ async def get_documents(
     
     return pdfs
 
-@router.get("/documents/{document_id}", response_model=PDFResponse)
+@router.get("/documents/{document_id}", response_model=DocumentResponse)
 async def get_document(document_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PDF).where(PDF.id == document_id))
     pdf = result.scalar_one_or_none()

@@ -1,4 +1,4 @@
-from .pdfs import PDFBase, PDFCreate, PDFResponse
+from .pdfs import DocumentCreate, DocumentResponse
 from .flashcards import FlashcardBase, FlashcardCreate, FlashcardResponse
 from .annotations import AnnotationBase, AnnotationCreate, AnnotationResponse
 from .sessions import (
@@ -12,9 +12,8 @@ from .sessions import (
 )
 
 __all__ = [
-    "PDFBase",
-    "PDFCreate",
-    "PDFResponse",
+    "DocumentCreate",
+    "DocumentResponse",
     "FlashcardBase",
     "FlashcardCreate",
     "FlashcardResponse",

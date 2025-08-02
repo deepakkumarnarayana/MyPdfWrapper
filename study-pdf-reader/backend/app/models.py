@@ -5,6 +5,20 @@ from sqlalchemy.dialects.sqlite import JSON  # SQLite JSON support
 from app.database import Base
 import enum
 
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    pdfs = relationship("PDF", back_populates="owner", cascade="all, delete-orphan")
+
+
 class DocumentType(enum.Enum):
     BOOK = "book"
     RESEARCH_PAPER = "research_paper"
@@ -15,6 +29,7 @@ class PDF(Base):
     __tablename__ = "pdfs"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     filename = Column(String, unique=True, index=True, nullable=False)
     original_filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
@@ -34,6 +49,7 @@ class PDF(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    owner = relationship("User", back_populates="pdfs")
     flashcards = relationship("Flashcard", back_populates="pdf", cascade="all, delete-orphan")
     annotations = relationship("Annotation", back_populates="pdf", cascade="all, delete-orphan")
 
