@@ -57,9 +57,40 @@ export const useSessions = () => useAppStore(state => ({
 export const useUI = () => useAppStore(state => ({
   sidebarCollapsed: state.sidebarCollapsed,
   theme: state.theme,
+  pdfNightMode: state.pdfNightMode,
   notifications: state.notifications,
   toggleSidebar: state.toggleSidebar,
   setTheme: state.setTheme,
+  setPdfNightMode: state.setPdfNightMode,
+  togglePdfNightMode: state.togglePdfNightMode,
   addNotification: state.addNotification,
   removeNotification: state.removeNotification,
 }));
+
+// Initialize PDF night mode and listen for system theme changes
+const initializePdfNightMode = () => {
+  if (typeof window === 'undefined') return;
+
+  // Listen for system theme changes
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+    // Only auto-update if user hasn't explicitly set a preference
+    const hasExplicitPreference = localStorage.getItem('pdfNightMode') !== null;
+    if (!hasExplicitPreference) {
+      useAppStore.getState().setPdfNightMode(e.matches);
+    }
+  };
+
+  // Add listener for system theme changes
+  mediaQuery.addEventListener('change', handleSystemThemeChange);
+
+  // Return cleanup function
+  return () => {
+    mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  };
+};
+
+// Initialize on app load
+if (typeof window !== 'undefined') {
+  initializePdfNightMode();
+}

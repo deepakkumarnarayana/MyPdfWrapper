@@ -6,10 +6,13 @@ import { readingSessionService, ReadingSession } from '../../services/readingSes
 import { pdfService } from '../../services/pdfService';
 import { SessionStatusPanel } from './SessionStatusPanel';
 import { SessionHistoryModal } from './SessionHistoryModal';
+import { NightModeToggle } from './NightModeToggle';
+import { useUI } from '../../store';
 
 export const FullPdfViewer: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
+  const { pdfNightMode } = useUI();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [bookTitle, setBookTitle] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
@@ -319,6 +322,58 @@ export const FullPdfViewer: React.FC = () => {
     };
   }, []); // Empty dependencies - only run on mount/unmount
 
+  // Handle PDF night mode changes
+  useEffect(() => {
+    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - NIGHT_MODE_CHANGED:`, { 
+      pdfNightMode,
+      bookId 
+    });
+
+    // Apply night mode styling to the PDF iframe
+    const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
+    if (iframe?.contentDocument) {
+      const iframeDoc = iframe.contentDocument;
+      const iframeBody = iframeDoc.body;
+      
+      if (pdfNightMode) {
+        iframeBody.classList.add('pdf-night-mode');
+        // Load night mode CSS if not already loaded
+        if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
+          const link = iframeDoc.createElement('link');
+          link.id = 'pdf-night-mode-styles';
+          link.rel = 'stylesheet';
+          link.href = '/pdf-night-mode.css';
+          iframeDoc.head.appendChild(link);
+        }
+      } else {
+        iframeBody.classList.remove('pdf-night-mode');
+      }
+    } else {
+      // If iframe is not ready yet, wait and try again
+      const retryApplyNightMode = setTimeout(() => {
+        const retryIframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
+        if (retryIframe?.contentDocument) {
+          const iframeDoc = retryIframe.contentDocument;
+          const iframeBody = iframeDoc.body;
+          
+          if (pdfNightMode) {
+            iframeBody.classList.add('pdf-night-mode');
+            if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
+              const link = iframeDoc.createElement('link');
+              link.id = 'pdf-night-mode-styles';
+              link.rel = 'stylesheet';
+              link.href = '/pdf-night-mode.css';
+              iframeDoc.head.appendChild(link);
+            }
+          } else {
+            iframeBody.classList.remove('pdf-night-mode');
+          }
+        }
+      }, 1000);
+
+      return () => clearTimeout(retryApplyNightMode);
+    }
+  }, [pdfNightMode, bookId]);
 
   const handleBack = () => {
     console.log(`[PDF_VIEWER] ${new Date().toISOString()} - HANDLE_BACK_TRIGGERED:`, {
@@ -385,6 +440,8 @@ export const FullPdfViewer: React.FC = () => {
           {bookTitle} - Full PDF.js Viewer
         </Typography>
 
+        {/* Night Mode Toggle */}
+        <NightModeToggle />
 
         {/* Session Status Indicator */}
         {currentSession ? (
