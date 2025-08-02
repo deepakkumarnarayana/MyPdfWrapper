@@ -13,7 +13,7 @@ export interface ButtonProps extends Omit<MuiButtonProps, 'variant'> {
 // Styled button with custom variants
 const StyledButton = styled(MuiButton, {
   shouldForwardProp: (prop) => prop !== 'customVariant' && prop !== 'loading',
-})<{ customVariant?: string }>(({ theme, customVariant }) => ({
+})<{ customVariant?: string; loading?: boolean }>(({ theme, customVariant }) => ({
   position: 'relative',
   textTransform: 'none',
   fontWeight: 500,
@@ -62,7 +62,9 @@ const StyledButton = styled(MuiButton, {
   // Loading styles handled by ButtonContent component
 }));
 
-const ButtonContent = styled('span')<{ loading?: boolean }>(({ loading }) => ({
+const ButtonContent = styled('span', {
+  shouldForwardProp: (prop) => prop !== 'loading',
+})<{ loading?: boolean }>(({ loading }) => ({
   display: 'flex',
   alignItems: 'center',
   opacity: loading ? 0.7 : 1,

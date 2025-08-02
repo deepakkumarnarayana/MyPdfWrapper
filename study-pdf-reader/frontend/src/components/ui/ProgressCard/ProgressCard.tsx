@@ -22,6 +22,8 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
   status,
   onClick,
 }) => {
+  // Ensure progress is a valid number between 0 and 100
+  const validProgress = Math.max(0, Math.min(100, progress || 0));
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'In Progress': return 'primary';
@@ -58,12 +60,12 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
         <Box sx={{ flexGrow: 1 }}>
           <LinearProgress 
             variant="determinate" 
-            value={progress} 
+            value={validProgress} 
             sx={{ height: 8, borderRadius: 4 }}
           />
         </Box>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {progress}%
+          {validProgress}%
         </Typography>
       </Box>
     </Paper>

@@ -220,10 +220,43 @@ export const handlers = [
     });
   }),
 
-  // Books API - Updated to match backend structure
-  http.get('*/api/books', async () => {
+  // Versioned auth endpoints
+  http.get('*/api/v1/auth/check', async () => {
     await simulateDelay();
-    return HttpResponse.json(mockBooks);
+    return HttpResponse.json({
+      data: { 
+        authenticated: true, 
+        user: { id: '1', email: 'admin@example.com', name: 'Admin User', role: 'admin' } 
+      },
+      success: true,
+      message: 'Auth check successful'
+    });
+  }),
+
+  // Documents API - Updated to match unified backend structure
+  http.get('*/api/v1/documents', async ({ request }) => {
+    const url = new URL(request.url);
+    const documentType = url.searchParams.get('document_type');
+    
+    if (documentType === 'book') {
+      return HttpResponse.json(mockBooks);
+    } else if (documentType === 'research_paper') {
+      return HttpResponse.json(mockResearchPapers);
+    }
+    // Return all documents if no type specified
+    return HttpResponse.json([...mockBooks, ...mockResearchPapers]);
+  }),
+
+
+  http.get('*/api/v1/documents/:id', async ({ params }) => {
+    await simulateDelay();
+    const book = mockBooks.find(b => b.id === params.id);
+    const paper = mockResearchPapers.find(p => p.id === params.id);
+    const document = book || paper;
+    if (!document) {
+      return new HttpResponse(null, { status: 404 });
+    }
+    return HttpResponse.json(document);
   }),
 
   http.get('*/api/books/:id', async ({ params }) => {
@@ -233,6 +266,24 @@ export const handlers = [
       return new HttpResponse(null, { status: 404 });
     }
     return HttpResponse.json(book);
+  }),
+
+  http.put('*/api/v1/documents/:id', async ({ params, request }) => {
+    await simulateDelay();
+    const bookIndex = mockBooks.findIndex(b => b.id === params.id);
+    const paperIndex = mockResearchPapers.findIndex(p => p.id === params.id);
+    
+    if (bookIndex !== -1) {
+      const updates = await request.json() as Partial<Book>;
+      mockBooks[bookIndex] = { ...mockBooks[bookIndex], ...updates, updatedAt: new Date().toISOString() } as Book;
+      return HttpResponse.json(mockBooks[bookIndex]);
+    } else if (paperIndex !== -1) {
+      const updates = await request.json() as Partial<typeof mockResearchPapers[0]>;
+      mockResearchPapers[paperIndex] = { ...mockResearchPapers[paperIndex], ...updates };
+      return HttpResponse.json(mockResearchPapers[paperIndex]);
+    }
+    
+    return new HttpResponse(null, { status: 404 });
   }),
 
   http.put('*/api/books/:id', async ({ params, request }) => {
@@ -245,6 +296,48 @@ export const handlers = [
     const updates = await request.json() as Partial<Book>;
     mockBooks[bookIndex] = { ...mockBooks[bookIndex], ...updates, updatedAt: new Date().toISOString() } as Book;
     return HttpResponse.json(mockBooks[bookIndex]);
+  }),
+
+  http.post('*/api/v1/documents', async ({ request }) => {
+    await simulateDelay(1500);
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const documentType = formData.get('document_type') as string || 'book';
+    
+    if (documentType === 'research_paper') {
+      const newPaper = {
+        id: `paper-${Date.now()}`,
+        title: file.name.replace('.pdf', ''),
+        pages: 'Pages 1-20',
+        progress: 0,
+        status: 'Started',
+        authors: ['Unknown Author'],
+        publishedDate: new Date().toISOString().split('T')[0] || '',
+        journal: 'Unknown Journal',
+        citations: 0,
+      };
+      mockResearchPapers.push(newPaper);
+      return HttpResponse.json(newPaper);
+    } else {
+      const newBook: Book = {
+        id: `book-${Date.now()}`,
+        title: file.name.replace('.pdf', ''),
+        fileName: file.name,
+        fileUrl: `/sample-pdfs/${file.name}`,
+        pages: 'Pages 1-50',
+        progress: 0,
+        status: 'Started',
+        totalPages: 50,
+        currentPage: 1,
+        uploadDate: new Date().toISOString().split('T')[0] || '',
+        fileSize: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+        lastReadPage: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockBooks.push(newBook);
+      return HttpResponse.json(newBook);
+    }
   }),
 
   http.post('*/api/books', async ({ request }) => {
@@ -273,6 +366,22 @@ export const handlers = [
     return HttpResponse.json(newBook);
   }),
 
+  http.delete('*/api/v1/documents/:id', async ({ params }) => {
+    await simulateDelay();
+    const bookIndex = mockBooks.findIndex(b => b.id === params.id);
+    const paperIndex = mockResearchPapers.findIndex(p => p.id === params.id);
+    
+    if (bookIndex !== -1) {
+      mockBooks.splice(bookIndex, 1);
+      return HttpResponse.json({ message: 'Document deleted successfully' });
+    } else if (paperIndex !== -1) {
+      mockResearchPapers.splice(paperIndex, 1);
+      return HttpResponse.json({ message: 'Document deleted successfully' });
+    }
+    
+    return new HttpResponse(null, { status: 404 });
+  }),
+
   http.delete('*/api/books/:id', async ({ params }) => {
     await simulateDelay();
     const bookIndex = mockBooks.findIndex(b => b.id === params.id);
@@ -284,57 +393,32 @@ export const handlers = [
     return HttpResponse.json({ message: 'Book deleted successfully' });
   }),
 
-  // Research Papers API
-  http.get('*/api/research-papers', async () => {
-    await simulateDelay();
-    return HttpResponse.json(mockResearchPapers);
-  }),
-
-  http.post('*/api/research-papers', async ({ request }) => {
-    await simulateDelay(1200);
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    
-    const newPaper = {
-      id: `paper-${Date.now()}`,
-      title: file.name.replace('.pdf', ''),
-      pages: 'Pages 1-20',
-      progress: 0,
-      status: 'Started',
-      authors: ['Unknown Author'],
-      publishedDate: new Date().toISOString().split('T')[0] || '',
-      journal: 'Unknown Journal',
-      citations: 0,
-    };
-    
-    mockResearchPapers.push(newPaper);
-    return HttpResponse.json(newPaper);
-  }),
 
   // Sessions API
-  http.get('*/api/sessions', async () => {
+  http.get('*/api/v1/sessions', async () => {
     await simulateDelay();
     return HttpResponse.json(mockSessions);
   }),
 
-  http.post('*/api/sessions/:id/export-anki', async () => {
+  http.post('*/api/v1/sessions/:id/export-anki', async () => {
     await simulateDelay();
     return HttpResponse.json({ success: true, message: 'Session exported to Anki successfully' });
   }),
 
   // AI Providers API
-  http.get('*/api/ai-providers', async () => {
+  http.get('*/api/v1/ai-providers', async () => {
     await simulateDelay();
     return HttpResponse.json(mockAIProviders);
   }),
 
-  http.post('*/api/ai-providers/:id/select', async () => {
+  http.post('*/api/v1/ai-providers/:id/select', async () => {
     await simulateDelay();
     return HttpResponse.json({ success: true });
   }),
 
+
   // System API
-  http.get('*/api/system/services', async () => {
+  http.get('*/api/v1/system/services', async () => {
     await simulateDelay();
     return HttpResponse.json([
       { id: 'pdf-processor', name: 'PDF Processor', status: 'running' },
@@ -342,12 +426,12 @@ export const handlers = [
     ]);
   }),
 
-  http.post('*/api/system/health-check', async () => {
+  http.post('*/api/v1/system/health-check', async () => {
     await simulateDelay();
     return HttpResponse.json({ success: true, message: 'System is healthy' });
   }),
 
-  http.get('*/api/system/stats', async () => {
+  http.get('*/api/v1/system/stats', async () => {
     await simulateDelay();
     return HttpResponse.json({
       totalTime: '12h 45m',
@@ -357,10 +441,11 @@ export const handlers = [
     });
   }),
 
-  http.post('*/api/system/learning-session', async () => {
+  http.post('*/api/v1/system/learning-session', async () => {
     await simulateDelay();
     return HttpResponse.json({ sessionId: `session-${Date.now()}`, message: 'Learning session started' });
   }),
+
 
   // Books PDF file endpoints - Updated to match new backend API
   http.get('*/api/books/:id/pdf', async ({ params }) => {
@@ -460,7 +545,7 @@ export const handlers = [
   }),
 
   // Sessions API for reading session tracking
-  http.post('http://localhost:8000/api/sessions', async ({ request }) => {
+  http.post('http://localhost:8000/api/v1/sessions', async ({ request }) => {
     await simulateDelay(100); // Faster for session tracking
     
     const sessionData = await request.json() as {
@@ -488,7 +573,7 @@ export const handlers = [
     return HttpResponse.json(newSession);
   }),
 
-  http.put('http://localhost:8000/api/sessions/:sessionId', async ({ params, request }) => {
+  http.put('http://localhost:8000/api/v1/sessions/:sessionId', async ({ params, request }) => {
     await simulateDelay(100);
     
     const sessionId = params.sessionId as string;
@@ -534,7 +619,7 @@ export const handlers = [
     return HttpResponse.json(session);
   }),
 
-  http.get('http://localhost:8000/api/sessions', async ({ request }) => {
+  http.get('http://localhost:8000/api/v1/sessions', async ({ request }) => {
     await simulateDelay();
     
     const url = new URL(request.url);
