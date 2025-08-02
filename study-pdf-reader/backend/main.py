@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from app.database import create_tables
-from app.routers import pdfs, flashcards, health, books, sessions
+from app.routers import pdfs, flashcards, health, sessions, auth, system, ai_providers
 
 load_dotenv()
 
@@ -35,12 +35,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(health.router, prefix="/api")
-app.include_router(pdfs.router, prefix="/api")
-app.include_router(flashcards.router, prefix="/api")
-app.include_router(books.router, prefix="/api/books", tags=["books"])
-app.include_router(sessions.router, prefix="/api")
+# Include routers with versioning
+app.include_router(health.router, prefix="/api/v1")
+app.include_router(pdfs.router, prefix="/api/v1", tags=["documents"])
+app.include_router(flashcards.router, prefix="/api/v1")
+app.include_router(sessions.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(system.router, prefix="/api/v1")
+app.include_router(ai_providers.router, prefix="/api/v1")
 
 # Serve static files (PDFs)
 project_root = Path(__file__).parent.parent

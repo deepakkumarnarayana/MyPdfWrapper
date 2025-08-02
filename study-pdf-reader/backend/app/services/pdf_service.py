@@ -4,6 +4,7 @@ import pymupdf as fitz  # PyMuPDF
 from fastapi import UploadFile
 from typing import Dict, Any
 from pathlib import Path
+from app.models import DocumentType
 
 class PDFService:
     def __init__(self):
@@ -17,8 +18,8 @@ class PDFService:
         """Ensure the storage directory exists"""
         os.makedirs(self.storage_path, exist_ok=True)
     
-    async def save_pdf(self, file: UploadFile) -> Dict[str, Any]:
-        """Save uploaded PDF file and extract metadata"""
+    async def save_pdf(self, file: UploadFile, document_type: DocumentType = DocumentType.BOOK) -> Dict[str, Any]:
+        """Save uploaded PDF file and extract metadata with type-specific processing"""
         # Generate unique filename
         file_extension = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_extension}"
@@ -29,15 +30,19 @@ class PDFService:
             content = await file.read()
             buffer.write(content)
         
-        # Extract metadata
-        metadata = self._extract_metadata(file_path)
+        # Extract base metadata
+        base_metadata = self._extract_metadata(file_path)
+        
+        # Extract type-specific metadata
+        type_metadata = self._extract_type_specific_metadata(file_path, document_type)
         
         return {
             "filename": unique_filename,
             "original_filename": file.filename,
             "file_path": file_path,
             "file_size": len(content),
-            **metadata
+            **base_metadata,
+            **type_metadata
         }
     
     def _extract_metadata(self, file_path: str) -> Dict[str, Any]:
@@ -65,6 +70,43 @@ class PDFService:
             "title": metadata.get("title", "").strip() or None,
             "author": metadata.get("author", "").strip() or None,
             "page_count": len(doc)
+        }
+    
+    def _extract_type_specific_metadata(self, file_path: str, document_type: DocumentType) -> Dict[str, Any]:
+        """Extract type-specific metadata based on document type"""
+        try:
+            doc = fitz.open(file_path)
+            
+            if document_type == DocumentType.BOOK:
+                return self._extract_book_metadata(doc)
+            elif document_type == DocumentType.RESEARCH_PAPER:
+                return self._extract_research_paper_metadata(doc)
+            else:
+                return {}
+                
+        except Exception as e:
+            print(f"Error extracting type-specific metadata from {file_path}: {e}")
+            return {}
+    
+    def _extract_book_metadata(self, doc: fitz.Document) -> Dict[str, Any]:
+        """Extract book-specific metadata"""
+        # For now, return placeholder values
+        # In production, you'd implement ISBN extraction, genre classification, etc.
+        return {
+            "isbn": None,  # Could extract from text using regex
+            "publisher": None,  # Could extract from metadata or first few pages
+            "genre": None,  # Could classify using AI/ML
+        }
+    
+    def _extract_research_paper_metadata(self, doc: fitz.Document) -> Dict[str, Any]:
+        """Extract research paper-specific metadata"""
+        # For now, return placeholder values
+        # In production, you'd implement DOI extraction, keyword extraction, etc.
+        return {
+            "doi": None,  # Could extract from text using regex patterns
+            "journal": None,  # Could extract from header/footer text
+            "keywords": [],  # Could extract using NLP
+            "citation_count": 0,  # Would need to query external APIs
         }
     
     def extract_text(self, file_path: str, page_number: int = None) -> str:

@@ -10,15 +10,6 @@ from .sessions import (
     SessionResponse,
     SessionSummary
 )
-from .books import (
-    BookBase,
-    BookCreateRequest,
-    BookUpdateRequest,
-    BookResponse,
-    BookListResponse,
-    BookProgressUpdate,
-    BookMetadata
-)
 
 __all__ = [
     "PDFBase",
@@ -37,11 +28,4 @@ __all__ = [
     "SessionUpdate",
     "SessionResponse",
     "SessionSummary",
-    "BookBase",
-    "BookCreateRequest",
-    "BookUpdateRequest",
-    "BookResponse",
-    "BookListResponse",
-    "BookProgressUpdate",
-    "BookMetadata",
 ]
