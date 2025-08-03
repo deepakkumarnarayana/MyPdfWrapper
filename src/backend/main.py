@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 from app.database import create_tables
 from app.routers import pdfs, flashcards, health, sessions, auth, system, ai_providers
 
-load_dotenv()
+# Load environment variables from development config first
+load_dotenv(Path(__file__).parent.parent.parent / "config" / "environments" / "development.env")
+load_dotenv()  # Also load any local .env files
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,7 +110,7 @@ app.include_router(ai_providers.router, prefix="/api/v1")
 project_root = Path(__file__).parent.parent.parent  # Go up to project root
 default_pdf_storage = project_root / "data" / "storage" / "pdfs"
 pdf_storage_path = os.getenv("PDF_STORAGE_PATH", str(default_pdf_storage))
-
+print(f"PDF storage path: {pdf_storage_path}")
 # Ensure PDF storage directory exists
 os.makedirs(pdf_storage_path, exist_ok=True)
 

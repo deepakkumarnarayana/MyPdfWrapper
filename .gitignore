@@ -8,12 +8,13 @@ venv/
 */venv/
 **/venv/
 __pycache__/
+__pycache__/
 */__pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
 *.pyd
-
+src/backend/app/routers/__pycache__
 # Build Artifacts
 dist/
 build/
@@ -68,7 +69,8 @@ ssl/certificates/*.crt
 data/storage/pdfs/
 src/backend/storage/pdfs/
 study-pdf-reader/backend/storage/pdfs/
-
+src/backend/data/storage
+src/storage/pdfs/
 # Temporary Files
 .tmp/
 temp/
@@ -107,3 +109,15 @@ pids
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+data/storage/
+src/backend/storage/
+study-pdf-reader/backend/storage/
+src/backend/data/storage/
+src/storage/
+# Ignore all __pycache__ directories
+__pycache__
+*/__pycache__/
+**/__pycache__/
+data/storage/database.db
+data/storage/database.db
