@@ -149,3 +149,7 @@ tsconfig.tsbuildinfo
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# PDF.js library files (managed by npm and vite)
+frontend/public/pdfjs/
+frontend/public/pdfjs-full/

@@ -1,9 +1,44 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { viteStaticCopy } from 'vite-plugin-static-copy'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'node_modules/pdfjs-dist/build/pdf.worker.mjs',
+          dest: '.'
+        },
+        {
+          src: 'node_modules/pdfjs-dist/web/viewer.html',
+          dest: 'pdfjs-full'
+        },
+        {
+          src: 'node_modules/pdfjs-dist/web/viewer.css',
+          dest: 'pdfjs-full'
+        },
+        {
+          src: 'node_modules/pdfjs-dist/web/viewer.mjs',
+          dest: 'pdfjs-full'
+        },
+        {
+          src: 'node_modules/pdfjs-dist/web/images',
+          dest: 'pdfjs-full'
+        },
+        {
+          src: 'node_modules/pdfjs-dist/cmaps',
+          dest: 'pdfjs-full'
+        },
+        {
+          src: 'node_modules/pdfjs-dist/standard_fonts',
+          dest: 'pdfjs-full'
+        }
+      ]
+    })
+  ],
   server: {
     port: 3000,
     host: true,

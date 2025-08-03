@@ -27,7 +27,8 @@
     "clean:windows": "rmdir /s /q frontend\\dist frontend\\node_modules backend\\__pycache__ backend\\.pytest_cache backend\\venv"
   },
   "devDependencies": {
-    "concurrently": "^9.2.0"
+    "concurrently": "^9.2.0",
+    "vite-plugin-static-copy": "^3.1.1"
   },
   "engines": {
     "node": ">=18.0.0",
