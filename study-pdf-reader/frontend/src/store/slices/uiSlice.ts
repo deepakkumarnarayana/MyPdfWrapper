@@ -14,6 +14,7 @@ export interface UISlice {
   setTheme: (theme: 'light' | 'dark') => void;
   setPdfNightMode: (enabled: boolean) => void;
   togglePdfNightMode: () => void;
+  hydratePdfNightMode: () => void;
   addNotification: (notification: Omit<NotificationItem, 'id' | 'createdAt'>) => void;
   removeNotification: (id: string) => void;
 }
@@ -25,23 +26,10 @@ const getSystemThemePreference = (): boolean => {
 };
 
 export const createUISlice: StateCreator<AppStore, [], [], UISlice> = (set, get) => ({
-  // Initial state with system preference detection
+  // Initial state - start with system preference, localStorage will sync after mount
   sidebarCollapsed: false,
   theme: 'light',
-  pdfNightMode: (() => {
-    // Check localStorage first, then fall back to system preference
-    if (typeof window === 'undefined') return false;
-    try {
-      const saved = localStorage.getItem('pdfNightMode');
-      if (saved !== null) {
-        return JSON.parse(saved);
-      }
-      // If no saved preference, use system preference
-      return getSystemThemePreference();
-    } catch {
-      return getSystemThemePreference();
-    }
-  })(),
+  pdfNightMode: false, // Will be properly initialized in hydratePdfNightMode
   notifications: [],
 
   // Actions
@@ -50,14 +38,44 @@ export const createUISlice: StateCreator<AppStore, [], [], UISlice> = (set, get)
   setPdfNightMode: (enabled) => {
     set({ pdfNightMode: enabled });
     // Persist to localStorage
-    localStorage.setItem('pdfNightMode', JSON.stringify(enabled));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pdfNightMode', JSON.stringify(enabled));
+    }
   },
   togglePdfNightMode: () => {
     const currentMode = get().pdfNightMode;
     const newMode = !currentMode;
+    console.log(`[UI_STORE] togglePdfNightMode - Current: ${currentMode}, New: ${newMode}`);
     set({ pdfNightMode: newMode });
     // Persist to localStorage
-    localStorage.setItem('pdfNightMode', JSON.stringify(newMode));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pdfNightMode', JSON.stringify(newMode));
+    }
+    console.log(`[UI_STORE] localStorage updated with: ${newMode}`);
+  },
+  // Hydrate pdfNightMode from localStorage after mount
+  hydratePdfNightMode: () => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const saved = localStorage.getItem('pdfNightMode');
+      if (saved !== null) {
+        const savedValue = JSON.parse(saved);
+        console.log(`[UI_STORE] Hydrating pdfNightMode from localStorage: ${savedValue}`);
+        set({ pdfNightMode: savedValue });
+      } else {
+        // If no saved preference, use system preference
+        const systemPreference = getSystemThemePreference();
+        console.log(`[UI_STORE] No localStorage preference, using system: ${systemPreference}`);
+        set({ pdfNightMode: systemPreference });
+        localStorage.setItem('pdfNightMode', JSON.stringify(systemPreference));
+      }
+    } catch (error) {
+      console.error('[UI_STORE] Error hydrating pdfNightMode:', error);
+      const systemPreference = getSystemThemePreference();
+      set({ pdfNightMode: systemPreference });
+      localStorage.setItem('pdfNightMode', JSON.stringify(systemPreference));
+    }
   },
   addNotification: (notification) => {
     const newNotification: NotificationItem = {

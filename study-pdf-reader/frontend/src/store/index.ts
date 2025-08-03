@@ -63,6 +63,7 @@ export const useUI = () => useAppStore(state => ({
   setTheme: state.setTheme,
   setPdfNightMode: state.setPdfNightMode,
   togglePdfNightMode: state.togglePdfNightMode,
+  hydratePdfNightMode: state.hydratePdfNightMode,
   addNotification: state.addNotification,
   removeNotification: state.removeNotification,
 }));
@@ -70,6 +71,9 @@ export const useUI = () => useAppStore(state => ({
 // Initialize PDF night mode and listen for system theme changes
 const initializePdfNightMode = () => {
   if (typeof window === 'undefined') return;
+
+  // Hydrate from localStorage first
+  useAppStore.getState().hydratePdfNightMode();
 
   // Listen for system theme changes
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
