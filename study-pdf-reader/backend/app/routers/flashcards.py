@@ -2,12 +2,34 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.models import Flashcard, PDF
-from app.schemas.flashcards import FlashcardResponse, FlashcardCreate
+from app.models import Flashcard, PDF, FlashcardSource
+from app.schemas.flashcards import FlashcardResponse, FlashcardCreate, ManualFlashcardCreate
 from app.services.flashcard_service import FlashcardService
 from typing import List, Optional
 
 router = APIRouter()
+
+@router.post("/flashcards", response_model=FlashcardResponse)
+async def create_manual_flashcard(
+    flashcard_data: ManualFlashcardCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new flashcard manually from user input."""
+    # Verify the PDF exists
+    pdf = await db.get(PDF, flashcard_data.pdf_id)
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    flashcard = Flashcard(
+        **flashcard_data.dict(),
+        source=FlashcardSource.MANUAL
+    )
+    
+    db.add(flashcard)
+    await db.commit()
+    await db.refresh(flashcard)
+    
+    return flashcard
 
 @router.post("/documents/{document_id}/flashcards/generate")
 async def generate_flashcards(

@@ -53,6 +53,12 @@ class PDF(Base):
     flashcards = relationship("Flashcard", back_populates="pdf", cascade="all, delete-orphan")
     annotations = relationship("Annotation", back_populates="pdf", cascade="all, delete-orphan")
 
+
+class FlashcardSource(enum.Enum):
+    MANUAL = "manual"
+    AI = "ai"
+
+
 class Flashcard(Base):
     __tablename__ = "flashcards"
     
@@ -61,6 +67,9 @@ class Flashcard(Base):
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
     page_number = Column(Integer, nullable=True)
+    context_text = Column(Text, nullable=True)  # The highlighted text
+    coordinates = Column(JSON, nullable=True)  # Position of the highlight on the page
+    source = Column(Enum(FlashcardSource), nullable=False, default=FlashcardSource.AI, index=True)
     difficulty = Column(String, default="medium")  # easy, medium, hard
     category = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -107,6 +116,7 @@ class StudySession(Base):
     start_page = Column(Integer, nullable=True)
     end_page = Column(Integer, nullable=True)
     pages_read = Column(Integer, default=0)
+    highlights = Column(JSON, nullable=True)  # Store highlighted text and coordinates
     
     # Study tracking (flashcards)
     flashcards_reviewed = Column(Integer, default=0)
