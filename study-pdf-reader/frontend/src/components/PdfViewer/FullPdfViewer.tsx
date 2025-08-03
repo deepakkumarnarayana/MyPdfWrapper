@@ -243,46 +243,31 @@ export const FullPdfViewer: React.FC = () => {
 
   // Handle PDF night mode changes
   useEffect(() => {
-    const applyNightMode = () => {
+    const timer = setTimeout(() => {
       const iframe = document.querySelector('iframe') as HTMLIFrameElement;
-      if (!iframe) return;
+      if (!iframe?.contentDocument) return;
 
-      try {
-        const iframeDoc = iframe.contentDocument;
-        if (!iframeDoc) return;
-
-        const iframeBody = iframeDoc.body;
-        
-        // Load CSS if not already loaded
-        if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
-          const link = iframeDoc.createElement('link');
-          link.id = 'pdf-night-mode-styles';
-          link.rel = 'stylesheet';
-          link.href = '/pdf-night-mode.css';
-          iframeDoc.head.appendChild(link);
-        }
-        
-        // Apply/remove night mode class
-        if (pdfNightMode) {
-          iframeBody.classList.add('pdf-night-mode');
-        } else {
-          iframeBody.classList.remove('pdf-night-mode');
-        }
-      } catch (error) {
-        // Cross-origin or iframe not ready - retry after delay
-        setTimeout(applyNightMode, 500);
+      const iframeDoc = iframe.contentDocument;
+      const iframeBody = iframeDoc.body;
+      
+      // Load CSS if not already loaded
+      if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
+        const link = iframeDoc.createElement('link');
+        link.id = 'pdf-night-mode-styles';
+        link.rel = 'stylesheet';
+        link.href = '/pdf-night-mode.css';
+        iframeDoc.head.appendChild(link);
       }
-    };
-
-    // Try immediately, then with increasing delays
-    applyNightMode();
-    const timer1 = setTimeout(applyNightMode, 500);
-    const timer2 = setTimeout(applyNightMode, 1500);
+      
+      // Apply/remove night mode class
+      if (pdfNightMode) {
+        iframeBody.classList.add('pdf-night-mode');
+      } else {
+        iframeBody.classList.remove('pdf-night-mode');
+      }
+    }, 1000); // Simple 1-second delay
     
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-    };
+    return () => clearTimeout(timer);
   }, [pdfNightMode, bookId]);
 
   const handleBack = async () => {
