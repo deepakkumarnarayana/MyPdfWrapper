@@ -1,0 +1,46 @@
+{
+  "name": "pdf-learning-platform",
+  "version": "1.0.0",
+  "description": "AI-powered PDF learning application with automated flashcard generation",
+  "private": true,
+  "workspaces": [
+    "src/frontend",
+    "src/backend",
+    "shared/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd src/backend && python main.py",
+    "dev:frontend": "cd src/frontend && npm run dev",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd src/frontend && npm run build",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "cd src/frontend && npm test",
+    "test:backend": "cd src/backend && python -m pytest",
+    "setup": "npm run setup:frontend && npm run setup:backend",
+    "setup:frontend": "cd src/frontend && npm install",
+    "setup:backend": "cd src/backend && pip install -r requirements.txt",
+    "docker:dev": "docker-compose -f config/docker/development/docker-compose.yml up",
+    "docker:prod": "docker-compose -f config/docker/production/docker-compose.yml up -d",
+    "https:setup": "./scripts/setup/https-setup.sh",
+    "lint": "npm run lint:frontend",
+    "lint:frontend": "cd src/frontend && npm run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "pdf",
+    "ai",
+    "learning",
+    "flashcards",
+    "education",
+    "claude"
+  ],
+  "license": "MIT",
+  "author": "PDF Learning Platform Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deepakkumarnarayana/MyPdfWrapper.git"
+  }
+}

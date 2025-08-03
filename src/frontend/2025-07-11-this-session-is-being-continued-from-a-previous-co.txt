@@ -1,0 +1,18 @@
+╭───────────────────────────────────────────────────────────────────────────────╮
+│ ✻ Welcome to Claude Code!                                                     │
+│                                                                               │
+│   /help for help, /status for your current setup                              │
+│                                                                               │
+│   cwd: /mnt/01D7E79FEB78AE50/Projects/MyPdfWrapper/study-pdf-reader/frontend  │
+╰───────────────────────────────────────────────────────────────────────────────╯
+
+● Compact summary (ctrl+r to expand)
+  ⎿  Read src/components/PdfViewer/PdfViewer.tsx (100+ lines)
+  ⎿  Read pdfRender.md (617 lines)
+  ⎿  Read ../../../../../../tmp/Spectacle.ORoeeG/Screenshot_20250711_210713.png (26.5KB)
+  ⎿  Read src/mocks/handlers.ts (394 lines)
+  ⎿  Todo list read (4 items)
+  ⎿  Claude usage limit reached. Your limit will reset at 12:30am (Asia/Calcutta).
+
+      • /upgrade to increase your usage limit.
+
