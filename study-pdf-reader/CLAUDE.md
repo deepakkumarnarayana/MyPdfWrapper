@@ -54,6 +54,19 @@ cd frontend && npm run typecheck               # TypeScript type checking
 npm run build                                  # Build frontend for production
 ```
 
+### HTTPS Setup (Production)
+```bash
+# Quick HTTPS setup with Let's Encrypt
+./setup-https.sh                               # Interactive setup script
+
+# Manual start with HTTPS
+./start-https.sh                               # Start with SSL certificates
+
+# SSL management
+./renew-ssl.sh                                 # Manual certificate renewal
+tail -f ssl-renewal.log                        # View renewal logs
+```
+
 ## Architecture
 
 ### Backend (FastAPI)
@@ -113,6 +126,11 @@ PDF_STORAGE_PATH=./storage/pdfs
 DATABASE_URL=sqlite+aiosqlite:///./storage/database.db
 MAX_FILE_SIZE=10485760
 MAX_FLASHCARDS_PER_GENERATION=10
+
+# HTTPS Configuration (Production)
+SSL_CERT_PATH=/path/to/ssl/cert.pem
+SSL_KEY_PATH=/path/to/ssl/private.key
+DOMAIN=yourdomain.com
 ```
 
 ### Frontend (.env)

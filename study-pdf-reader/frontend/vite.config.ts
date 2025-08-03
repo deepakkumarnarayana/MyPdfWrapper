@@ -47,7 +47,6 @@ export default defineConfig({
     global: 'globalThis',
   },
   optimizeDeps: {
-    include: ['react-pdf'],
     esbuildOptions: {
       target: 'es2022',
     },

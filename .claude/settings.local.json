@@ -10,7 +10,10 @@
       "Bash(git push:*)",
       "Bash(npm run dev:*)",
       "Bash(find:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run typecheck:*)"
     ],
     "deny": []
   }
