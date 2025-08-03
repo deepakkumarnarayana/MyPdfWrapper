@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Snackbar, Alert, Chip, CircularProgress } from '@mui/material';
 import { ArrowBack, PlayArrow, Stop, History } from '@mui/icons-material';
@@ -8,12 +8,13 @@ import { SessionStatusPanel } from './SessionStatusPanel';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import { NightModeToggle } from './NightModeToggle';
 import { CreateFlashcardModal } from './CreateFlashcardModal';
+import { flashcardService } from '../../services/flashcardService';
 import { useUI } from '../../store';
 
 export const FullPdfViewer: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
-  const { pdfNightMode } = useUI();
+  const { pdfNightMode, hydratePdfNightMode } = useUI();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [bookTitle, setBookTitle] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
@@ -61,6 +62,9 @@ export const FullPdfViewer: React.FC = () => {
       render_count: renderCount.current
     });
     
+    // Ensure night mode state is properly hydrated on mount
+    hydratePdfNightMode();
+    
     // Add navigation monitoring
     const handlePopState = (event: PopStateEvent) => {
       console.log(`[PDF_VIEWER] ${new Date().toISOString()} - NAVIGATION_POPSTATE:`, {
@@ -84,7 +88,7 @@ export const FullPdfViewer: React.FC = () => {
       
       window.removeEventListener('popstate', handlePopState);
     };
-  }, []); // Empty dependency array - runs only on mount/unmount
+  }, [hydratePdfNightMode]); // Include hydratePdfNightMode in deps
 
   const startSession = useCallback(async () => {
     try {
@@ -237,83 +241,48 @@ export const FullPdfViewer: React.FC = () => {
 
   // beforeunload handling is now managed by the useReadingSession hook
 
-  // Handle PDF night mode changes with improved timing and error handling
+  // Handle PDF night mode changes
   useEffect(() => {
-    console.log(`[PDF_VIEWER] ${new Date().toISOString()} - NIGHT_MODE_CHANGED:`, { 
-      pdfNightMode,
-      bookId 
-    });
+    const applyNightMode = () => {
+      const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+      if (!iframe) return;
 
-    const applyNightMode = (iframe: HTMLIFrameElement, retryCount = 0): void => {
       try {
         const iframeDoc = iframe.contentDocument;
-        const iframeWin = iframe.contentWindow;
-        
-        if (!iframeDoc || !iframeWin) {
-          if (retryCount < 10) {
-            setTimeout(() => applyNightMode(iframe, retryCount + 1), 200);
-          }
-          return;
-        }
+        if (!iframeDoc) return;
 
         const iframeBody = iframeDoc.body;
         
+        // Load CSS if not already loaded
+        if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
+          const link = iframeDoc.createElement('link');
+          link.id = 'pdf-night-mode-styles';
+          link.rel = 'stylesheet';
+          link.href = '/pdf-night-mode.css';
+          iframeDoc.head.appendChild(link);
+        }
+        
+        // Apply/remove night mode class
         if (pdfNightMode) {
           iframeBody.classList.add('pdf-night-mode');
-          
-          // Load night mode CSS if not already loaded
-          if (!iframeDoc.querySelector('#pdf-night-mode-styles')) {
-            const link = iframeDoc.createElement('link');
-            link.id = 'pdf-night-mode-styles';
-            link.rel = 'stylesheet';
-            link.href = '/pdf-night-mode.css';
-            link.onload = () => {
-              console.log('[PDF_VIEWER] Night mode CSS loaded successfully');
-              // Let CSS filters handle the night mode without forcing canvas re-draw
-              // PDF.js will naturally update when user scrolls or navigates
-            };
-            link.onerror = () => {
-              console.error('[PDF_VIEWER] Failed to load night mode CSS');
-            };
-            iframeDoc.head.appendChild(link);
-          }
-          // CSS already loaded, night mode class will apply filters automatically
         } else {
           iframeBody.classList.remove('pdf-night-mode');
-          // CSS filters will be removed automatically, no need to force re-draw
         }
       } catch (error) {
-        console.error('[PDF_VIEWER] Cross-origin error applying night mode:', error);
-        if (retryCount < 5) {
-          setTimeout(() => applyNightMode(iframe, retryCount + 1), 500);
-        }
+        // Cross-origin or iframe not ready - retry after delay
+        setTimeout(applyNightMode, 500);
       }
     };
 
-    const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
-    if (iframe) {
-      applyNightMode(iframe);
-    } else {
-      // Wait for iframe to load
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          for (const node of mutation.addedNodes) {
-            if (node instanceof HTMLIFrameElement && node.title === 'PDF Viewer') {
-              observer.disconnect();
-              // Wait for iframe content to load
-              node.addEventListener('load', () => {
-                setTimeout(() => applyNightMode(node), 500);
-              });
-              break;
-            }
-          }
-        }
-      });
-      
-      observer.observe(document.body, { childList: true, subtree: true });
-      
-      return () => observer.disconnect();
-    }
+    // Try immediately, then with increasing delays
+    applyNightMode();
+    const timer1 = setTimeout(applyNightMode, 500);
+    const timer2 = setTimeout(applyNightMode, 1500);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [pdfNightMode, bookId]);
 
   const handleBack = async () => {
@@ -341,17 +310,13 @@ export const FullPdfViewer: React.FC = () => {
     if (!bookId || !selection) return;
 
     try {
-      // This is a placeholder for the actual API call
-      console.log('Saving flashcard:', {
+      await flashcardService.createManualFlashcard({
         pdf_id: parseInt(bookId),
         question,
         answer,
         page_number: currentPage,
         context_text: selection.text,
       });
-      
-      // Here you would call your flashcard service:
-      // await flashcardService.createManualFlashcard({ ... });
 
       setSessionNotification({
         open: true,

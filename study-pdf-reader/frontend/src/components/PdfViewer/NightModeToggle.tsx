@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconButton, Tooltip, Box, Typography } from '@mui/material';
+import { IconButton, Tooltip, Box } from '@mui/material';
 import { 
   DarkMode as DarkModeIcon, 
   LightMode as LightModeIcon,
@@ -16,11 +16,27 @@ export const NightModeToggle: React.FC<NightModeToggleProps> = ({
   size = 'medium',
   color = 'inherit'
 }) => {
-  const { pdfNightMode, togglePdfNightMode } = useUI();
+  const { pdfNightMode, togglePdfNightMode, hydratePdfNightMode } = useUI();
 
-  const handleToggle = () => {
+  // Ensure state is hydrated on mount
+  React.useEffect(() => {
+    hydratePdfNightMode();
+  }, [hydratePdfNightMode]);
+
+  const handleToggle = React.useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.log(`[NIGHT_MODE_TOGGLE] Before toggle - Current state: ${pdfNightMode}`);
+    }
+    
     togglePdfNightMode();
-  };
+    
+    if (import.meta.env.DEV) {
+      // Use requestAnimationFrame to ensure state has updated
+      requestAnimationFrame(() => {
+        console.log(`[NIGHT_MODE_TOGGLE] After toggle - New state: ${!pdfNightMode}`);
+      });
+    }
+  }, [pdfNightMode, togglePdfNightMode]);
 
   // Debug function to check PDF image rendering
   const debugPdfImages = () => {
@@ -44,7 +60,7 @@ export const NightModeToggle: React.FC<NightModeToggleProps> = ({
       });
       
       // Check if PDF.js viewer is ready
-      const pdfApp = iframe.contentWindow?.PDFViewerApplication;
+      const pdfApp = (iframe.contentWindow as any)?.PDFViewerApplication;
       if (pdfApp) {
         console.log('📄 PDF App Status:', {
           initialized: pdfApp.initialized,
@@ -57,6 +73,10 @@ export const NightModeToggle: React.FC<NightModeToggleProps> = ({
       console.log('❌ PDF iframe not accessible');
     }
   };
+
+  if (import.meta.env.DEV) {
+    console.log(`[NIGHT_MODE_TOGGLE] Render - pdfNightMode: ${pdfNightMode}`);
+  }
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -80,7 +100,7 @@ export const NightModeToggle: React.FC<NightModeToggleProps> = ({
       </Tooltip>
       
       {/* Debug button for development */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <Tooltip title="Debug PDF Images" arrow>
           <IconButton
             onClick={debugPdfImages}
