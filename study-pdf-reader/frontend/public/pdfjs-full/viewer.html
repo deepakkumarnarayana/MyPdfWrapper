@@ -819,5 +819,41 @@ See https://github.com/adobe-type-tools/cmap-resources
         }
       })();
     </script>
+
+    <!-- Text selection script for flashcard creation -->
+    <script>
+      (function() {
+        const viewer = document.getElementById('viewerContainer');
+        if (!viewer) {
+          return;
+        }
+
+        viewer.addEventListener('mouseup', (event) => {
+          const selection = window.getSelection();
+          const selectedText = selection.toString().trim();
+
+          if (selectedText.length > 0) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            
+            // Adjust coordinates to be relative to the viewer container
+            const viewerRect = viewer.getBoundingClientRect();
+
+            const position = {
+              top: rect.top - viewerRect.top,
+              left: rect.left - viewerRect.left,
+              width: rect.width,
+              height: rect.height,
+            };
+
+            window.parent.postMessage({
+              type: 'text-selected',
+              text: selectedText,
+              position: position
+            }, '*'); // In a real app, you'd use a specific target origin
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
