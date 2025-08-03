@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.database import get_db
 from app.models import PDF, StudySession
+from app.config import get_settings
 import os
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -29,9 +30,9 @@ async def get_system_services():
             "color": "error"
         })
     
-    # Check storage directory
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    pdf_storage_path = os.path.join(project_root, "storage", "pdfs")
+    # Check storage directory using centralized settings
+    settings = get_settings()
+    pdf_storage_path = settings.actual_pdf_storage_path
     
     if os.path.exists(pdf_storage_path):
         services.append({
@@ -48,8 +49,10 @@ async def get_system_services():
             "color": "error"
         })
     
-    # Check Claude API key
-    if os.getenv("CLAUDE_API_KEY"):
+    # Check Claude API key using centralized settings
+    settings = get_settings()
+    claude_key = settings.claude_api_key.get_secret_value()
+    if claude_key and claude_key != "your_claude_api_key_here":
         services.append({
             "id": "claude-ai",
             "service": "Claude AI",
@@ -124,9 +127,9 @@ async def run_health_check(db: AsyncSession = Depends(get_db)):
         # Test database connection
         await db.execute(select(1))
         
-        # Check storage directory
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        pdf_storage_path = os.path.join(project_root, "storage", "pdfs") 
+        # Check storage directory using centralized settings
+        settings = get_settings()
+        pdf_storage_path = settings.actual_pdf_storage_path 
         storage_ok = os.path.exists(pdf_storage_path)
         
         if storage_ok:

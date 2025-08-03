@@ -2,11 +2,13 @@ import os
 import json
 from anthropic import Anthropic
 from app.services.pdf_service import PDFService
+from app.config import get_settings
 from typing import List, Dict, Any
 
 class FlashcardService:
     def __init__(self):
-        self.client = Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
+        settings = get_settings()
+        self.client = Anthropic(api_key=settings.claude_api_key.get_secret_value())
         self.pdf_service = PDFService()
     
     async def generate_flashcards(self, file_path: str, max_flashcards: int = 10) -> List[Dict[str, Any]]:

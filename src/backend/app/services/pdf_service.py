@@ -5,13 +5,13 @@ from fastapi import UploadFile
 from typing import Dict, Any
 from pathlib import Path
 from app.models import DocumentType
+from app.config import get_settings
 
 class PDFService:
     def __init__(self):
-        # Get the project root directory (parent of backend)
-        project_root = Path(__file__).parent.parent.parent.parent
-        default_storage = project_root / "storage" / "pdfs"
-        self.storage_path = os.getenv("PDF_STORAGE_PATH", str(default_storage))
+        # Use centralized settings for PDF storage path
+        settings = get_settings()
+        self.storage_path = settings.actual_pdf_storage_path
         self._ensure_storage_directory()
     
     def _ensure_storage_directory(self):

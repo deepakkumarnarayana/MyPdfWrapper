@@ -7,14 +7,14 @@ node_modules/
 venv/
 */venv/
 **/venv/
-__pycache__/
+
+# Python Cache Files
 __pycache__/
 */__pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
 *.pyd
-src/backend/app/routers/__pycache__
 # Build Artifacts
 dist/
 build/
@@ -110,14 +110,9 @@ pids
 .yarn/install-state.gz
 .pnp.*
 
+# Storage Directories (keep structure, ignore content)
 data/storage/
 src/backend/storage/
 study-pdf-reader/backend/storage/
 src/backend/data/storage/
 src/storage/
-# Ignore all __pycache__ directories
-__pycache__
-*/__pycache__/
-**/__pycache__/
-data/storage/database.db
-data/storage/database.db

@@ -6,14 +6,15 @@ from contextlib import asynccontextmanager
 import os
 import time
 from pathlib import Path
-from dotenv import load_dotenv
 
 from app.database import create_tables
 from app.routers import pdfs, flashcards, health, sessions, auth, system, ai_providers
 
-# Load environment variables from development config first
-load_dotenv(Path(__file__).parent.parent.parent / "config" / "environments" / "development.env")
-load_dotenv()  # Also load any local .env files
+# Import modern settings configuration
+from app.config import get_settings
+
+# Get settings instance
+settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,37 +25,23 @@ async def lifespan(app: FastAPI):
     pass
 
 app = FastAPI(
-    title="Study PDF Reader API",
+    title=settings.app_name,
     description="AI-powered PDF learning application with automated flashcard generation",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
-    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
+    docs_url="/docs" if settings.environment != "production" else None,
+    redoc_url="/redoc" if settings.environment != "production" else None
 )
 
-# Configure CORS with enhanced security
-allowed_origins = []
+# Configure CORS using settings
+allowed_origins = settings.allowed_origins_list.copy()
 
-# Development origins (only in non-production)
-if os.getenv("ENVIRONMENT") != "production":
+# Add production domain if specified
+if settings.domain:
     allowed_origins.extend([
-        "http://localhost:3000", 
-        "http://127.0.0.1:3000",
-        "https://localhost:3000",
-        "https://127.0.0.1:3000"
+        f"https://{settings.domain}",
+        f"https://www.{settings.domain}"
     ])
-
-# Production domain if specified
-domain = os.getenv("DOMAIN")
-if domain:
-    allowed_origins.extend([
-        f"https://{domain}",
-        f"https://www.{domain}"
-    ])
-
-# Additional allowed origins from environment
-additional_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
-allowed_origins.extend([origin.strip() for origin in additional_origins if origin.strip()])
 
 # Security middleware
 @app.middleware("http")
@@ -65,7 +52,7 @@ async def add_security_headers(request: Request, call_next):
     process_time = time.time() - start_time
     
     # Security headers
-    if os.getenv("ENVIRONMENT") == "production":
+    if settings.environment == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -79,14 +66,11 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 # Trusted host middleware for production
-if os.getenv("ENVIRONMENT") == "production":
-    allowed_hosts = [os.getenv("DOMAIN")]
-    if os.getenv("ALLOWED_HOSTS"):
-        allowed_hosts.extend(os.getenv("ALLOWED_HOSTS").split(","))
-    
+if settings.environment == "production" and settings.domain:
+    allowed_hosts = [settings.domain, f"www.{settings.domain}"]
     app.add_middleware(
         TrustedHostMiddleware, 
-        allowed_hosts=[host.strip() for host in allowed_hosts if host and host.strip()]
+        allowed_hosts=allowed_hosts
     )
 
 app.add_middleware(
@@ -106,16 +90,16 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
 app.include_router(ai_providers.router, prefix="/api/v1")
 
-# Serve static files (PDFs) - Updated for new structure
-project_root = Path(__file__).parent.parent.parent  # Go up to project root
-default_pdf_storage = project_root / "data" / "storage" / "pdfs"
-pdf_storage_path = os.getenv("PDF_STORAGE_PATH", str(default_pdf_storage))
-print(f"PDF storage path: {pdf_storage_path}")
-# Ensure PDF storage directory exists
-os.makedirs(pdf_storage_path, exist_ok=True)
+# Serve static files (PDFs) - Use modern settings
+pdf_storage_path = settings.actual_pdf_storage_path
+print(f"📁 PDF storage path: {pdf_storage_path}")
 
+# Directory already created by settings, just mount it
 if os.path.exists(pdf_storage_path):
     app.mount("/static", StaticFiles(directory=pdf_storage_path), name="static")
+    print(f"✅ Static files mounted from: {pdf_storage_path}")
+else:
+    print(f"⚠️  Warning: PDF storage directory does not exist: {pdf_storage_path}")
 
 @app.get("/")
 async def root():
@@ -124,47 +108,104 @@ async def root():
 @app.get("/debug/storage")
 async def debug_storage():
     """Debug endpoint to check storage configuration - Development only"""
-    if os.getenv("ENVIRONMENT") == "production":
+    if settings.environment == "production":
         raise HTTPException(status_code=404, detail="Not found")
     
-    project_root = Path(__file__).parent.parent.parent  # Go up to project root
-    pdf_storage = project_root / "data" / "storage" / "pdfs"
+    # Use modern settings configuration
+    pdf_storage_path = Path(settings.actual_pdf_storage_path)
     
     # List files in storage (basic info only)
     file_count = 0
-    if pdf_storage.exists():
-        file_count = len([f for f in pdf_storage.iterdir() if f.is_file()])
+    if pdf_storage_path.exists():
+        file_count = len([f for f in pdf_storage_path.iterdir() if f.is_file()])
     
     return {
-        "pdf_storage_path": str(pdf_storage),
-        "storage_exists": pdf_storage.exists(),
-        "total_files": file_count
+        "project_root": str(settings.project_root),
+        "storage_directory": str(settings.storage_dir),
+        "pdf_storage_path": str(settings.actual_pdf_storage_path),
+        "database_url": settings.actual_database_url,
+        "storage_exists": pdf_storage_path.exists(),
+        "total_files": file_count,
+        "environment": settings.environment
     }
+
+@app.get("/config/validate")
+async def validate_configuration():
+    """Validate configuration for production readiness"""
+    if settings.environment == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    validation_results = settings.validate_configuration()
+    
+    overall_status = "healthy" if all(validation_results.values()) else "issues_detected"
+    
+    return {
+        "status": overall_status,
+        "environment": settings.environment,
+        "validation_results": validation_results,
+        "recommendations": _get_configuration_recommendations(validation_results)
+    }
+
+def _get_configuration_recommendations(validation_results: dict[str, bool]) -> list[str]:
+    """Generate recommendations based on validation results"""
+    recommendations = []
+    
+    if not validation_results.get("api_keys_configured"):
+        recommendations.append("Configure valid Claude API key for AI functionality")
+    
+    if not validation_results.get("storage_accessible"):
+        recommendations.append("Ensure PDF storage directory is writable")
+    
+    if not validation_results.get("database_reachable"):
+        recommendations.append("Verify database connectivity and permissions")
+    
+    if not validation_results.get("security_headers_enabled"):
+        recommendations.append("Enable security headers for production deployment")
+    
+    if not validation_results.get("ssl_configured"):
+        recommendations.append("Configure SSL certificates for HTTPS")
+    
+    if not recommendations:
+        recommendations.append("Configuration appears healthy")
+    
+    return recommendations
 
 if __name__ == "__main__":
     import uvicorn
     import ssl
     
-    # Check for SSL certificate files
-    ssl_cert_path = os.getenv("SSL_CERT_PATH")
-    ssl_key_path = os.getenv("SSL_KEY_PATH")
-    
-    if ssl_cert_path and ssl_key_path and os.path.exists(ssl_cert_path) and os.path.exists(ssl_key_path):
+    # Check for SSL certificate files using centralized settings
+    if (settings.ssl_cert_path and settings.ssl_key_path and 
+        os.path.exists(settings.ssl_cert_path) and os.path.exists(settings.ssl_key_path)):
         # Production HTTPS mode
         print(f"🔒 Starting server with HTTPS on port 443")
-        print(f"   Domain: {os.getenv('DOMAIN', 'localhost')}")
-        print(f"   Environment: {os.getenv('ENVIRONMENT', 'development')}")
+        print(f"   Domain: {settings.domain or 'localhost'}")
+        print(f"   Environment: {settings.environment}")
         
-        # Enhanced SSL configuration
+        # Production-hardened SSL configuration (2024 standards)
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ssl_context.load_cert_chain(ssl_cert_path, ssl_key_path)
+        ssl_context.load_cert_chain(settings.ssl_cert_path, settings.ssl_key_path)
         
-        # Security hardening
+        # Security hardening - TLS 1.3 preferred, TLS 1.2 minimum
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-        ssl_context.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS:!3DES")
+        ssl_context.maximum_version = ssl.TLSVersion.TLSv1_3
+        
+        # Use only secure cipher suites (OWASP recommended 2024)
+        ssl_context.set_ciphers(
+            "ECDHE-ECDSA-AES256-GCM-SHA384:"
+            "ECDHE-RSA-AES256-GCM-SHA384:"
+            "ECDHE-ECDSA-CHACHA20-POLY1305:"
+            "ECDHE-RSA-CHACHA20-POLY1305:"
+            "ECDHE-ECDSA-AES128-GCM-SHA256:"
+            "ECDHE-RSA-AES128-GCM-SHA256"
+        )
+        
+        # Additional security options
         ssl_context.options |= ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
         ssl_context.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
         ssl_context.options |= ssl.OP_SINGLE_DH_USE | ssl.OP_SINGLE_ECDH_USE
+        ssl_context.options |= ssl.OP_NO_COMPRESSION  # Prevent CRIME attacks
+        ssl_context.options |= ssl.OP_NO_RENEGOTIATION  # Prevent renegotiation attacks
         
         # Production server configuration
         uvicorn.run(
@@ -172,7 +213,7 @@ if __name__ == "__main__":
             host="0.0.0.0",
             port=443,
             ssl=ssl_context,
-            access_log=os.getenv("ENABLE_ACCESS_LOGS", "true").lower() == "true",
+            access_log=settings.enable_access_logs,
             server_header=False,
             date_header=False
         )

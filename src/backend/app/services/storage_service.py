@@ -8,6 +8,7 @@ from enum import Enum
 import logging
 from fastapi import UploadFile
 import uuid
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -206,15 +207,14 @@ class PDFStorageService:
         self.providers: Dict[str, StorageProviderInterface] = self._init_providers()
 
     def _load_config(self) -> StorageConfig:
-        """Load storage configuration from environment variables"""
-        project_root = Path(__file__).parent.parent.parent
-        default_storage = project_root / "storage" / "pdfs"
+        """Load storage configuration from centralized settings"""
+        settings = get_settings()
 
         return StorageConfig(
-            local_path=os.getenv("PDF_STORAGE_PATH", str(default_storage)),
-            s3_bucket=os.getenv("AWS_S3_BUCKET"),
-            s3_region=os.getenv("AWS_REGION", "us-east-1"),
-            default_expiry_hours=int(os.getenv("PDF_URL_EXPIRY_HOURS", "24"))
+            local_path=settings.actual_pdf_storage_path,
+            s3_bucket=settings.aws_s3_bucket,
+            s3_region=settings.aws_region,
+            default_expiry_hours=settings.pdf_url_expiry_hours
         )
 
     def _init_providers(self) -> Dict[str, StorageProviderInterface]:

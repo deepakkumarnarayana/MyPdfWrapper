@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from typing import List
+from app.config import get_settings
 import os
 
 router = APIRouter()
@@ -7,12 +8,16 @@ router = APIRouter()
 @router.get("/ai-providers")
 async def get_ai_providers():
     """Get list of available AI providers"""
+    settings = get_settings()
+    claude_key = settings.claude_api_key.get_secret_value()
+    claude_active = claude_key and claude_key != "your_claude_api_key_here"
+    
     providers = [
         {
             "id": "claude",
             "name": "Claude",
-            "isActive": bool(os.getenv("CLAUDE_API_KEY")),
-            "status": "Connected" if os.getenv("CLAUDE_API_KEY") else "Disconnected",
+            "isActive": claude_active,
+            "status": "Connected" if claude_active else "Disconnected",
             "lastUsed": "2025-01-20T10:30:00Z"
         },
         {

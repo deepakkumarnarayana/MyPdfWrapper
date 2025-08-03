@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from app.config import get_settings
 import os
 
 router = APIRouter()
@@ -15,6 +16,8 @@ async def health_check():
 
 @router.get("/health/detailed")
 async def detailed_health_check(db: AsyncSession = Depends(get_db)):
+    settings = get_settings()
+    
     # Check database connection
     try:
         await db.execute("SELECT 1")
@@ -22,14 +25,14 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
     
-    # Check storage directories
-    pdf_storage_path = os.getenv("PDF_STORAGE_PATH", "./storage/pdfs")
+    # Check storage directories using centralized settings
+    pdf_storage_path = settings.actual_pdf_storage_path
     storage_status = "healthy" if os.path.exists(pdf_storage_path) else "missing storage directory"
     
-    # Check environment variables
-    required_env_vars = ["CLAUDE_API_KEY"]
-    missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
-    env_status = "healthy" if not missing_env_vars else f"missing: {', '.join(missing_env_vars)}"
+    # Check environment variables using centralized settings
+    claude_key = settings.claude_api_key.get_secret_value()
+    claude_configured = claude_key and claude_key != "your_claude_api_key_here"
+    env_status = "healthy" if claude_configured else "missing: CLAUDE_API_KEY"
     
     return {
         "status": "healthy" if all(status == "healthy" for status in [db_status, storage_status, env_status]) else "degraded",

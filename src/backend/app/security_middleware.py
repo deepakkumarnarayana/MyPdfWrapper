@@ -6,6 +6,7 @@ Implements OWASP 2025 standards for secure HTTP handling
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse
+from app.config import get_settings
 import os
 from typing import Dict, Any
 import logging
@@ -22,9 +23,10 @@ class HTTPSEnforcementMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app, enable_hsts: bool = True, hsts_max_age: int = 31536000):
         super().__init__(app)
+        settings = get_settings()
         self.enable_hsts = enable_hsts
         self.hsts_max_age = hsts_max_age
-        self.is_production = os.getenv("ENVIRONMENT", "development") == "production"
+        self.is_production = settings.environment == "production"
         
         # Log security configuration
         logger.info(f"HTTPS Enforcement: {'Enabled' if self.is_production else 'Development Mode'}")
@@ -144,7 +146,8 @@ class SecurityValidationMiddleware(BaseHTTPMiddleware):
 
     def is_valid_host(self, host: str) -> bool:
         """Validate the Host header against allowed hosts"""
-        allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+        settings = get_settings()
+        allowed_hosts = settings.allowed_hosts_list
         
         # Remove port from host if present
         host_without_port = host.split(":")[0] if ":" in host else host
@@ -180,10 +183,11 @@ def setup_security_middleware(app: FastAPI) -> None:
     - No HTTP fallback (security best practice)
     """
     
-    # Environment configuration
-    environment = os.getenv("ENVIRONMENT", "development")
-    enable_hsts = os.getenv("ENABLE_HSTS", "true").lower() == "true"
-    hsts_max_age = int(os.getenv("HSTS_MAX_AGE", "31536000"))  # 1 year default
+    # Environment configuration using centralized settings
+    settings = get_settings()
+    environment = settings.environment
+    enable_hsts = settings.enable_hsts
+    hsts_max_age = settings.hsts_max_age
     
     # Add security middleware in order
     app.add_middleware(
@@ -204,14 +208,15 @@ def setup_security_middleware(app: FastAPI) -> None:
 # Example usage in main.py
 def create_secure_app() -> FastAPI:
     """Create a FastAPI app with modern security configuration"""
+    settings = get_settings()
     
     app = FastAPI(
         title="Secure PDF Reader API",
         description="Production-ready API with HTTPS-only security",
         version="1.0.0",
         # Important: Set docs_url and redoc_url to None in production
-        docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
-        redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None,
+        docs_url="/docs" if settings.environment != "production" else None,
+        redoc_url="/redoc" if settings.environment != "production" else None,
     )
     
     # Configure security middleware
@@ -220,9 +225,9 @@ def create_secure_app() -> FastAPI:
     # Add CORS with secure configuration
     from fastapi.middleware.cors import CORSMiddleware
     
-    if os.getenv("ENVIRONMENT") == "production":
+    if settings.environment == "production":
         # Production CORS - restrictive
-        allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+        allowed_origins = settings.allowed_origins_list
         app.add_middleware(
             CORSMiddleware,
             allow_origins=allowed_origins,  # Specific origins only
@@ -250,12 +255,13 @@ async def health_check():
     Health check endpoint that includes security status.
     This helps verify HTTPS and security headers are working.
     """
+    settings = get_settings()
     return {
         "status": "healthy",
         "security": {
-            "https_enforced": os.getenv("ENVIRONMENT") == "production",
-            "hsts_enabled": os.getenv("ENABLE_HSTS", "true").lower() == "true",
-            "environment": os.getenv("ENVIRONMENT", "development")
+            "https_enforced": settings.environment == "production",
+            "hsts_enabled": settings.enable_hsts,
+            "environment": settings.environment
         },
         "timestamp": "2025-01-01T00:00:00Z"  # Use actual timestamp
     }
