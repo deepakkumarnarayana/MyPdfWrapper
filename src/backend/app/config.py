@@ -72,13 +72,9 @@ class Settings(BaseSettings):
     supported_languages: str = Field(default="en,es,fr,de", description="Supported languages")
     session_timeout_minutes: int = Field(default=60, description="Session timeout in minutes")
     
-    # Configure Pydantic to load from environment-specific .env file  
-    # Note: Files are loaded in order, with later files overriding earlier ones
+    # Pydantic will automatically load from environment variables.
+    # The runner (Docker, direnv, or a script) is responsible for loading the correct .env file.
     model_config = SettingsConfigDict(
-        env_file=[
-            Path(__file__).parent.parent.parent.parent / ".env",  # Load general .env first (contains ENVIRONMENT)
-            Path(__file__).parent.parent.parent.parent / f".env.{os.getenv('ENVIRONMENT', 'development')}"  # Then load environment-specific
-        ],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"  # Ignore extra environment variables
