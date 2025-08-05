@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Alert } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
+import { apiService } from '../../services/ApiService';
 
 export const SimplePdfViewer: React.FC = () => {
   const { bookId } = useParams<{ bookId: string }>();
@@ -48,35 +49,51 @@ export const SimplePdfViewer: React.FC = () => {
     const directPdfUrl = `/sample-pdfs/${bookFileMap[bookId] || 'CNSIA.pdf'}`;
     addDebugLog(`Direct PDF URL for testing: ${directPdfUrl}`);
 
-    // Test if PDF URL is accessible via API
-    fetch(pdfUrl, { method: 'HEAD' })
-      .then(response => {
+    // Test if PDF URL is accessible via API using centralized ApiService
+    const testPdfAccess = async () => {
+      try {
+        const response = await apiService.head(pdfUrl);
         addDebugLog(`PDF HEAD request status: ${response.status}`);
-        if (!response.ok) {
+        
+        if (response.status === 200) {
+          addDebugLog('PDF HEAD request successful - PDF is accessible via API');
+        } else {
           setPdfError(`PDF not accessible via API: ${response.status} ${response.statusText}`);
           addDebugLog(`PDF HEAD request failed: ${response.status}`);
           
-          // Try direct access as fallback
-          addDebugLog(`Trying direct PDF access: ${directPdfUrl}`);
-          return fetch(directPdfUrl, { method: 'HEAD' });
-        } else {
-          addDebugLog('PDF HEAD request successful - PDF is accessible via API');
-          return response;
+          // Try direct access as fallback using native fetch (for static files outside API)
+          try {
+            addDebugLog(`Trying direct PDF access: ${directPdfUrl}`);
+            const directResponse = await fetch(directPdfUrl, { method: 'HEAD' });
+            addDebugLog(`Direct PDF access status: ${directResponse.status}`);
+            
+            if (directResponse.ok) {
+              addDebugLog('Direct PDF access successful - can use fallback mode');
+              setPdfError('API access failed, but direct PDF access works');
+            }
+          } catch (directError) {
+            addDebugLog(`Direct PDF access error: ${directError.message}`);
+          }
         }
-      })
-      .then(response => {
-        if (response && response.url.includes('/sample-pdfs/')) {
-          addDebugLog(`Direct PDF access status: ${response.status}`);
-          if (response.ok) {
+      } catch (error: any) {
+        addDebugLog(`PDF HEAD request error: ${error.message}`);
+        setPdfError(`Network error: ${error.message}`);
+        
+        // Still try direct access as last resort
+        try {
+          addDebugLog(`Trying direct PDF access as fallback: ${directPdfUrl}`);
+          const directResponse = await fetch(directPdfUrl, { method: 'HEAD' });
+          if (directResponse.ok) {
             addDebugLog('Direct PDF access successful - can use fallback mode');
             setPdfError('API access failed, but direct PDF access works');
           }
+        } catch (directError) {
+          addDebugLog(`Direct PDF access also failed: ${directError.message}`);
         }
-      })
-      .catch(error => {
-        addDebugLog(`PDF HEAD request error: ${error.message}`);
-        setPdfError(`Network error: ${error.message}`);
-      });
+      }
+    };
+    
+    testPdfAccess();
   }, [bookId]);
 
   if (!bookId) {
