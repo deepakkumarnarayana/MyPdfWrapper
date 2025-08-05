@@ -1,61 +1,86 @@
-/**
- * PDF Service
- * 
- * Uses centralized ApiService for all HTTP operations.
- * Maintains clean separation of concerns.
- */
+import axios from 'axios'
+import { PDF, Flashcard, FlashcardGenerationResponse } from '../types'
 
-import { apiService } from './ApiService';
-import { PDF, Flashcard, FlashcardGenerationResponse } from '../types';
+const API_BASE_URL = '/api/v1'
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data?.detail) {
+      throw new Error(error.response.data.detail)
+    }
+    throw new Error(error.message || 'An unexpected error occurred')
+  }
+)
 
 export const pdfService = {
   async getAllPDFs(): Promise<PDF[]> {
-    return apiService.get<PDF[]>('/documents');
+    const response = await api.get<PDF[]>('/documents')
+    return response.data
   },
 
   async getPDF(id: number): Promise<PDF> {
-    return apiService.get<PDF>(`/documents/${id}`);
+    const response = await api.get<PDF>(`/documents/${id}`)
+    return response.data
   },
 
   async uploadPDF(file: File): Promise<PDF> {
-    const formData = new FormData();
-    formData.append('file', file);
+    const formData = new FormData()
+    formData.append('file', file)
     
-    return apiService.postFormData<PDF>('/documents', formData);
+    const response = await api.post<PDF>('/documents', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
   },
 
   async deletePDF(id: number): Promise<void> {
-    return apiService.delete<void>(`/documents/${id}`);
+    await api.delete(`/documents/${id}`)
   },
 
   async getFlashcards(pdfId: number): Promise<Flashcard[]> {
-    return apiService.get<Flashcard[]>(`/documents/${pdfId}/flashcards`);
+    const response = await api.get<Flashcard[]>(`/documents/${pdfId}/flashcards`)
+    return response.data
   },
 
   async generateFlashcards(pdfId: number): Promise<FlashcardGenerationResponse> {
-    return apiService.post<FlashcardGenerationResponse>(
+    const response = await api.post<FlashcardGenerationResponse>(
       `/documents/${pdfId}/flashcards/generate`
-    );
+    )
+    return response.data
   },
 
   async updateFlashcard(id: number, data: Partial<Flashcard>): Promise<Flashcard> {
-    return apiService.put<Flashcard>(`/flashcards/${id}`, data);
+    const response = await api.put<Flashcard>(`/flashcards/${id}`, data)
+    return response.data
   },
 
   async deleteFlashcard(id: number): Promise<void> {
-    return apiService.delete<void>(`/flashcards/${id}`);
+    await api.delete(`/flashcards/${id}`)
   },
 
   async getBooks(): Promise<any[]> {
-    return apiService.get<any[]>('/documents?document_type=book');
+    const response = await api.get('/documents?document_type=book');
+    return response.data;
   },
 
   async getBookPdfUrl(bookId: string): Promise<string> {
-    const response = await apiService.get<{ url: string }>(`/documents/${bookId}/url`);
-    return response.url;
+    const response = await api.get<{ url: string }>(`/documents/${bookId}/url`);
+    return response.data.url;
   },
 
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
-    return apiService.get<{ status: string; service: string; version: string }>('/health');
+    const response = await api.get('/health')
+    return response.data
   },
-};
+}

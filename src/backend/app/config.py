@@ -39,28 +39,8 @@ class Settings(BaseSettings):
     
     # AI Configuration - Using SecretStr for security
     claude_api_key: SecretStr = Field(default="your_claude_api_key_here", description="Claude AI API key")
-    openai_api_key: SecretStr = Field(default="your_openai_api_key_here", description="OpenAI API key")
     max_flashcards_per_generation: int = Field(default=10, ge=1, le=50, description="Max flashcards per generation")
     default_ai_model: str = Field(default="claude-3-sonnet", description="Default AI model")
-    
-    # AI Proxy Configuration
-    ai_proxy_enabled: bool = Field(default=True, description="Enable AI proxy endpoints")
-    ai_proxy_rate_limit_per_minute: int = Field(default=60, ge=1, le=1000, description="Rate limit per minute per user")
-    ai_proxy_rate_limit_per_hour: int = Field(default=500, ge=1, le=10000, description="Rate limit per hour per user")
-    ai_proxy_max_tokens: int = Field(default=4000, ge=100, le=8000, description="Maximum tokens per request")
-    ai_proxy_timeout_seconds: int = Field(default=60, ge=10, le=300, description="Request timeout in seconds")
-    ai_proxy_cache_ttl_seconds: int = Field(default=3600, ge=300, le=86400, description="Cache TTL in seconds")
-    ai_proxy_cost_limit_daily: float = Field(default=10.0, ge=0.1, le=100.0, description="Daily cost limit in USD per user")
-    
-    # Redis Configuration
-    redis_url: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
-    redis_enabled: bool = Field(default=True, description="Enable Redis caching")
-    redis_max_connections: int = Field(default=10, ge=1, le=100, description="Redis connection pool size")
-    
-    # Circuit Breaker Configuration
-    circuit_breaker_failure_threshold: int = Field(default=5, ge=3, le=20, description="Failures before opening circuit")
-    circuit_breaker_recovery_timeout: int = Field(default=60, ge=30, le=300, description="Recovery timeout in seconds")
-    circuit_breaker_expected_exception_rate: float = Field(default=0.5, ge=0.1, le=1.0, description="Expected exception rate")
     
     # AWS Configuration
     aws_s3_bucket: Optional[str] = Field(default=None, description="AWS S3 bucket name")
@@ -208,23 +188,6 @@ class Settings(BaseSettings):
         
         return v
     
-    @field_validator('openai_api_key')
-    @classmethod
-    def validate_openai_api_key(cls, v):
-        """Validate OpenAI API key format"""
-        if isinstance(v, SecretStr):
-            key_value = v.get_secret_value()
-        else:
-            key_value = v
-            
-        if key_value == "your_openai_api_key_here":
-            # OpenAI is optional, so we don't require it in production
-            pass
-        elif key_value and not key_value.startswith("sk-"):
-            raise ValueError("OpenAI API key must start with 'sk-'")
-        
-        return v
-    
     def setup_directories(self) -> None:
         """Ensure all required directories exist."""
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -306,16 +269,7 @@ class Settings(BaseSettings):
     def _validate_api_keys(self) -> bool:
         """Validate that required API keys are configured."""
         claude_key = self.claude_api_key.get_secret_value()
-        openai_key = self.openai_api_key.get_secret_value()
-        
-        # Claude is required
-        claude_valid = claude_key != "your_claude_api_key_here" and len(claude_key) > 10
-        
-        # OpenAI is optional but should be valid if provided
-        openai_valid = (openai_key == "your_openai_api_key_here" or 
-                       (openai_key.startswith("sk-") and len(openai_key) > 20))
-        
-        return claude_valid and openai_valid
+        return claude_key != "your_claude_api_key_here" and len(claude_key) > 10
     
     def _validate_security_settings(self) -> bool:
         """Validate security configuration."""

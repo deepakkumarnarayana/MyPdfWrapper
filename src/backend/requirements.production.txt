@@ -39,7 +39,7 @@ gunicorn==21.2.0
 
 # Optional: Redis for caching/sessions
 redis==5.0.1
-
+aioredis==2.0.1
 
 # Development and testing (install separately)
 # pytest==7.4.3

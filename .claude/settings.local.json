@@ -15,9 +15,7 @@
       "Bash(npx tsc:*)",
       "Bash(npm run typecheck:*)",
       "Bash(cp:*)",
-      "Bash(true)",
-      "Bash(ENV=staging python main.py)",
-      "Bash(ENV=staging python debug_env.py)"
+      "Bash(true)"
     ],
     "deny": []
   }
