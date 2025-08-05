@@ -196,7 +196,7 @@ class ApiService {
     const allowedTypes = options?.allowedTypes || ['application/pdf'];
     const maxSize = options?.maxSize || 50 * 1024 * 1024; // 50MB
     
-    for (const [key, value] of formData.entries()) {
+    for (const [, value] of formData.entries()) {
       if (value instanceof File) {
         if (!allowedTypes.includes(value.type)) {
           throw new Error(`File type ${value.type} not allowed`);

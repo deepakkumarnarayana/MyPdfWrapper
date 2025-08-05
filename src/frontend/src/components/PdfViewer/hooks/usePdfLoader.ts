@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { pdfService } from '../../../services/pdfService';
-import { Book } from '../../../types/dashboard';
+import { PDF } from '../../../types';
 
 // Configure PDF.js worker with better error handling
 try {
@@ -20,7 +20,7 @@ export const usePdfLoader = (bookId: string | undefined) => {
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bookData, setBookData] = useState<Book | null>(null);
+  const [bookData, setBookData] = useState<PDF | null>(null);
   const [lastReadPage, setLastReadPage] = useState(1);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export const usePdfLoader = (bookId: string | undefined) => {
         }
         
         setBookData(book);
-        setLastReadPage(book.lastReadPage || book.currentPage || 1);
+        setLastReadPage(book.lastReadPage || 1);
         
         // Use API endpoint to get PDF file
         const pdfPath = `/api/books/${bookId}/pdf`;

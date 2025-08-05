@@ -1,3 +1,24 @@
+/**
+ * FullPdfViewer - Complete PDF Study Application
+ * 
+ * This is the MAIN and ONLY PDF viewer component used in production.
+ * It provides a complete study experience with integrated features.
+ * 
+ * Features:
+ * - PDF viewing with browser's native PDF.js viewer
+ * - Reading session tracking (start/stop/progress)
+ * - Manual flashcard creation from text selection
+ * - Night mode support with user preference persistence
+ * - Session history and analytics
+ * - Progress tracking and automatic saving
+ * - Full integration with backend API services
+ * 
+ * Usage: Exported as default 'PdfViewer' in index.ts
+ * Route: /pdf/:bookId (full-screen, no sidebar layout)
+ * 
+ * @version 2024-12 - Production active component
+ */
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Snackbar, Alert, Chip, CircularProgress } from '@mui/material';

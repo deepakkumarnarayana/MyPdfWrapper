@@ -8,7 +8,7 @@ import { PageRenderInfo } from '../types';
  */
 const applyTransform = (point: [number, number], transform: number[]): [number, number] => {
   const [x, y] = point;
-  const [a, b, c, d, e, f] = transform;
+  const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = transform;
   return [a * x + c * y + e, b * x + d * y + f];
 };
 
@@ -18,7 +18,7 @@ const applyTransform = (point: [number, number], transform: number[]): [number, 
  * @returns The inverted 6-element matrix.
  */
 const invertTransform = (transform: number[]): number[] => {
-  const [a, b, c, d, e, f] = transform;
+  const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = transform;
   const det = a * d - b * c;
   if (!det) {
     console.error("Cannot invert a singular matrix.");

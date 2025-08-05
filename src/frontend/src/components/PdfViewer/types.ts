@@ -13,13 +13,13 @@ export interface PageRenderInfo {
   annotations: any[];
 }
 
-export interface Highlight {
+export interface BasicHighlight {
   id: string;
   pageNumber: number;
   quadPoints: number[]; // [x1, y1, x2, y2, x3, y3, x4, y4]
 }
 
-export interface StoredHighlight {
+export interface Highlight {
   id: string;
   pageNumber: number;
   rects: Array<{ x: number; y: number; width: number; height: number }>;
@@ -29,8 +29,6 @@ export interface StoredHighlight {
   opacity?: number;
   visible?: boolean;
 }
-
-export type Highlight = StoredHighlight;
 
 export interface HighlightColor {
   name: string;

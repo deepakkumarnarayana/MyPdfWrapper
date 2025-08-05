@@ -53,7 +53,7 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
   createBook: async (bookData: Partial<Book>) => {
     try {
       // TODO: Implement createBook in pdfService
-      const response = { data: bookData }; // Temporary placeholder
+      const response = { data: bookData as Book }; // Temporary placeholder
       set(state => ({
         ...state,
         books: [...state.books, response.data]
@@ -108,15 +108,22 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
     }));
 
     try {
-      const response = await pdfService.uploadPDF(file);
+      const pdfResponse = await pdfService.uploadPDF(file);
+      
+      // Convert PDF type to Book type for dashboard compatibility
+      const bookResponse: Book = {
+        ...pdfResponse,
+        pages: pdfResponse.totalPages.toString(),
+        fileSize: pdfResponse.fileSize.toString()
+      };
 
       set(state => ({
         ...state,
-        books: [...state.books, response],
+        books: [...state.books, bookResponse],
         uploadProgress: null
       }));
 
-      return response;
+      return bookResponse;
     } catch (error) {
       set(state => ({
         ...state,

@@ -1,18 +1,18 @@
 import { useState, useCallback } from 'react';
 import type { MutableRefObject } from 'react';
-import { StoredHighlight, PageRenderInfo, HighlightSettings } from '../types';
+import { Highlight, PageRenderInfo, HighlightSettings } from '../types';
 import { DEFAULT_HIGHLIGHT_SETTINGS } from '../constants';
 import { clientToPagePoint } from '../utils/coordinates';
 
 // Helper to apply a transform to a point
 const applyTransform = (point: [number, number], transform: number[]): [number, number] => {
   const [x, y] = point;
-  const [a, b, c, d, e, f] = transform;
+  const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = transform;
   return [a * x + c * y + e, b * x + d * y + f];
 };
 
 export const useHighlights = () => {
-  const [highlights, setHighlights] = useState<StoredHighlight[]>([]);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [highlightColor, setHighlightColor] = useState('#FFFF00');
   const [highlightSettings, setHighlightSettings] = useState<HighlightSettings>(DEFAULT_HIGHLIGHT_SETTINGS);
 
@@ -107,7 +107,7 @@ export const useHighlights = () => {
 
     if (rects.length === 0) return;
 
-    const newHighlight: StoredHighlight = {
+    const newHighlight: Highlight = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       pageNumber: pageNum,
       rects,

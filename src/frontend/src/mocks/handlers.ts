@@ -278,7 +278,7 @@ export const handlers = [
       mockBooks[bookIndex] = { ...mockBooks[bookIndex], ...updates, updatedAt: new Date().toISOString() } as Book;
       return HttpResponse.json(mockBooks[bookIndex]);
     } else if (paperIndex !== -1) {
-      const updates = await request.json() as Partial<typeof mockResearchPapers[0]>;
+      const updates = await request.json() as any;
       mockResearchPapers[paperIndex] = { ...mockResearchPapers[paperIndex], ...updates };
       return HttpResponse.json(mockResearchPapers[paperIndex]);
     }
@@ -494,19 +494,22 @@ export const handlers = [
     const progressData = await request.json() as { currentPage: number; lastReadPage: number; progress?: number };
     
     // Update mock book data with progress
-    mockBooks[bookIndex] = {
-      ...mockBooks[bookIndex],
-      currentPage: progressData.currentPage,
-      lastReadPage: progressData.lastReadPage,
-      progress: progressData.progress || Math.round((progressData.currentPage / mockBooks[bookIndex].totalPages) * 100),
-      updatedAt: new Date().toISOString()
-    };
+    const book = mockBooks[bookIndex];
+    if (book) {
+      mockBooks[bookIndex] = {
+        ...book,
+        currentPage: progressData.currentPage,
+        lastReadPage: progressData.lastReadPage,
+        progress: progressData.progress || Math.round((progressData.currentPage / book.totalPages) * 100),
+        updatedAt: new Date().toISOString()
+      } as Book;
+    }
     
     return HttpResponse.json({
       message: 'Reading progress updated successfully',
       currentPage: progressData.currentPage,
       lastReadPage: progressData.lastReadPage,
-      progress: mockBooks[bookIndex].progress
+      progress: mockBooks[bookIndex]?.progress || 0
     });
   }),
 
