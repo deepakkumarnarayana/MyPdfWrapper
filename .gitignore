@@ -116,3 +116,4 @@ src/backend/storage/
 study-pdf-reader/backend/storage/
 src/backend/data/storage/
 src/storage/
+api.env
