@@ -3,11 +3,9 @@ import { Box, Grid } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store';
 import { useDashboardData } from './hooks/useDashboardData';
-import { booksApi } from '../../services/api/books.api';
-import { researchPapersApi } from '../../services/api/researchPapers.api';
-import { sessionsApi } from '../../services/api/sessions.api';
-import { aiProvidersApi } from '../../services/api/aiProviders.api';
-import { systemApi } from '../../services/api/system.api';
+import { apiService } from '../../services/ApiService';
+import { pdfService } from '../../services/pdfService';
+// APIs now handled through centralized ApiService via useDashboardData hook
 // Sections
 import {
   WelcomeSection,
@@ -68,7 +66,7 @@ export const Dashboard: React.FC = () => {
             }}
             onUpload={async (file) => {
               try {
-                await booksApi.uploadBook(file);
+                await pdfService.uploadPDF(file);
                 reloadBooks();
               } catch (error) {
                 // TODO: Show error notification to user
@@ -85,7 +83,7 @@ export const Dashboard: React.FC = () => {
             }}
             onExportToAnki={async (sessionId) => {
               try {
-                await sessionsApi.exportSessionToAnki(sessionId);
+                await apiService.post(`/sessions/${sessionId}/export-anki`);
                 // TODO: Show success message
               } catch (error) {
                 // TODO: Show error notification to user
@@ -107,7 +105,9 @@ export const Dashboard: React.FC = () => {
             }}
             onUpload={async (file) => {
               try {
-                await researchPapersApi.uploadResearchPaper(file);
+                const formData = new FormData();
+                formData.append('file', file);
+                await apiService.postFormData('/documents', formData);
                 refreshData();
               } catch (error) {
                 // TODO: Show error notification to user
@@ -121,7 +121,7 @@ export const Dashboard: React.FC = () => {
             error={error}
             onProviderSelect={async (providerId) => {
               try {
-                await aiProvidersApi.selectAIProvider(providerId);
+                await apiService.post(`/ai-proxy/providers/${providerId}/select`);
                 refreshData();
               } catch (error) {
                 // TODO: Show error notification to user
@@ -132,7 +132,7 @@ export const Dashboard: React.FC = () => {
           <QuickStartSection 
             onStartSession={async () => {
               try {
-                await systemApi.startLearningSession();
+                await apiService.post('/system/start-learning-session');
                 // TODO: Navigate to learning session
               } catch (error) {
                 // TODO: Show error notification to user

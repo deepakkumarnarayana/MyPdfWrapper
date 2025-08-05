@@ -7,11 +7,8 @@ import {
   SystemService, 
   DashboardStats
 } from '../../../types/dashboard';
-import { booksApi } from '../../../services/api/books.api';
-import { researchPapersApi } from '../../../services/api/researchPapers.api';
-import { sessionsApi } from '../../../services/api/sessions.api';
-import { aiProvidersApi } from '../../../services/api/aiProviders.api';
-import { systemApi } from '../../../services/api/system.api';
+import { apiService } from '../../../services/ApiService';
+import { pdfService } from '../../../services/pdfService';
 
 export interface DashboardData {
   books: Book[];
@@ -47,12 +44,12 @@ export const useDashboardData = () => {
     try {
       // Use Promise.allSettled to handle individual API failures gracefully
       const results = await Promise.allSettled([
-        booksApi.getBooks(),
-        researchPapersApi.getResearchPapers(),
-        sessionsApi.getSessions(),
-        aiProvidersApi.getAIProviders(),
-        systemApi.getSystemServices(),
-        systemApi.getStats(),
+        pdfService.getBooks(),
+        apiService.get<ResearchPaper[]>('/documents?document_type=research_paper'),
+        apiService.get<Session[]>('/sessions'),
+        apiService.get<AIProvider[]>('/ai-proxy/providers'),
+        apiService.get<SystemService[]>('/system/services'),
+        apiService.get<DashboardStats>('/system/stats'),
       ]);
 
       // Helper to extract data or return a default value on failure
@@ -104,8 +101,8 @@ export const useDashboardData = () => {
     const interval = setInterval(async () => {
       try {
         const [aiProviders, systemServices] = await Promise.all([
-          aiProvidersApi.getAIProviders(),
-          systemApi.getSystemServices(),
+          apiService.get<AIProvider[]>('/ai-proxy/providers'),
+          apiService.get<SystemService[]>('/system/services'),
         ]);
         
         setData(prev => ({
@@ -126,7 +123,7 @@ export const useDashboardData = () => {
     refreshData,
     reloadBooks: useCallback(async () => {
       try {
-        const books = await booksApi.getBooks();
+        const books = await pdfService.getBooks();
         setData(prev => ({ ...prev, books }));
       } catch (error) {
         console.error('Failed to reload books:', error);
@@ -134,7 +131,7 @@ export const useDashboardData = () => {
     }, []),
     reloadSessions: useCallback(async () => {
       try {
-        const sessions = await sessionsApi.getSessions();
+        const sessions = await apiService.get<Session[]>('/sessions');
         setData(prev => ({ ...prev, sessions }));
       } catch (error) {
         console.error('Failed to reload sessions:', error);

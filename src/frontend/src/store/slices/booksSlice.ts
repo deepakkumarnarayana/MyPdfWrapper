@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { Book } from '../../types/dashboard';
-import { booksApi } from '../../services/api/books.api';
+import { pdfService } from '../../services/pdfService';
 import { AppStore } from '../index';
 
 export interface BooksSlice {
@@ -35,7 +35,7 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
     }));
 
     try {
-      const books = await booksApi.getBooks();
+      const books = await pdfService.getBooks();
       set(state => ({
         ...state,
         books: books,
@@ -52,7 +52,8 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
 
   createBook: async (bookData: Partial<Book>) => {
     try {
-      const response = await booksApi.createBook(bookData);
+      // TODO: Implement createBook in pdfService
+      const response = { data: bookData }; // Temporary placeholder
       set(state => ({
         ...state,
         books: [...state.books, response.data]
@@ -69,10 +70,10 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
 
   updateBook: async (id: string, updates: Partial<Book>) => {
     try {
-      const response = await booksApi.updateBook(id, updates);
+      const response = await pdfService.updateBook(id, updates);
       set(state => ({
         ...state,
-        books: state.books.map(book => book.id === id ? response.data : book)
+        books: state.books.map(book => book.id === id ? response : book)
       }));
     } catch (error) {
       set(state => ({
@@ -85,7 +86,7 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
 
   deleteBook: async (id: string) => {
     try {
-      await booksApi.deleteBook(id);
+      await pdfService.deleteBook(id);
       set(state => ({
         ...state,
         books: state.books.filter(book => book.id !== id)
@@ -107,20 +108,15 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
     }));
 
     try {
-      const response = await booksApi.uploadBook(file, (progress) => {
-        set(state => ({
-          ...state,
-          uploadProgress: progress
-        }));
-      });
+      const response = await pdfService.uploadPDF(file);
 
       set(state => ({
         ...state,
-        books: [...state.books, response.data],
+        books: [...state.books, response],
         uploadProgress: null
       }));
 
-      return response.data;
+      return response;
     } catch (error) {
       set(state => ({
         ...state,
@@ -133,8 +129,8 @@ export const createBooksSlice: StateCreator<AppStore, [], [], BooksSlice> = (set
 
   searchBooks: async (query: string) => {
     try {
-      const response = await booksApi.searchBooks(query);
-      return response.data;
+      const response = await pdfService.searchBooks(query);
+      return response;
     } catch (error) {
       set(state => ({
         ...state,

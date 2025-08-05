@@ -11,21 +11,6 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
-    mimeTypes: {
-      'application/wasm': ['wasm']
-    },
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/static': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-      }
-    }
   },
   build: {
     outDir: 'dist',

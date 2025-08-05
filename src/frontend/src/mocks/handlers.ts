@@ -545,7 +545,7 @@ export const handlers = [
   }),
 
   // Sessions API for reading session tracking
-  http.post('http://localhost:8000/api/v1/sessions', async ({ request }) => {
+  http.post('*/api/v1/sessions', async ({ request }) => {
     await simulateDelay(100); // Faster for session tracking
     
     const sessionData = await request.json() as {
@@ -573,7 +573,7 @@ export const handlers = [
     return HttpResponse.json(newSession);
   }),
 
-  http.put('http://localhost:8000/api/v1/sessions/:sessionId', async ({ params, request }) => {
+  http.put('*/api/v1/sessions/:sessionId', async ({ params, request }) => {
     await simulateDelay(100);
     
     const sessionId = params.sessionId as string;
@@ -619,7 +619,7 @@ export const handlers = [
     return HttpResponse.json(session);
   }),
 
-  http.get('http://localhost:8000/api/v1/sessions', async ({ request }) => {
+  http.get('*/api/v1/sessions', async ({ request }) => {
     await simulateDelay();
     
     const url = new URL(request.url);

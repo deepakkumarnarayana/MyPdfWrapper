@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { Session } from '../../types/dashboard';
-import { sessionsApi } from '../../services/api/sessions.api';
+import { apiService } from '../../services/ApiService';
 import { AppStore } from '../index';
 
 export interface SessionsSlice {
@@ -25,7 +25,7 @@ export const createSessionsSlice: StateCreator<AppStore, [], [], SessionsSlice> 
   fetchSessions: async () => {
     set({ sessionsLoading: true, sessionsError: null });
     try {
-      const sessions = await sessionsApi.getSessions();
+      const sessions = await apiService.get<Session[]>('/sessions');
       set({ sessions: sessions, sessionsLoading: false });
     } catch (error) {
       set({ sessionsError: error instanceof Error ? error.message : 'Failed to fetch sessions', sessionsLoading: false });
@@ -34,8 +34,8 @@ export const createSessionsSlice: StateCreator<AppStore, [], [], SessionsSlice> 
 
   createSession: async (sessionData: Partial<Session>) => {
     try {
-      const response = await sessionsApi.createSession(sessionData);
-      set(state => ({ sessions: [...state.sessions, response.data] }));
+      const response = await apiService.post<Session>('/sessions', sessionData);
+      set(state => ({ sessions: [...state.sessions, response] }));
     } catch (error) {
       set({ sessionsError: error instanceof Error ? error.message : 'Failed to create session' });
       throw error;
@@ -44,9 +44,9 @@ export const createSessionsSlice: StateCreator<AppStore, [], [], SessionsSlice> 
 
   updateSession: async (id: string, updates: Partial<Session>) => {
     try {
-      const response = await sessionsApi.updateSession(id, updates);
+      const response = await apiService.put<Session>(`/sessions/${id}`, updates);
       set(state => ({
-        sessions: state.sessions.map(s => s.id === id ? response.data : s)
+        sessions: state.sessions.map(s => s.id === id ? response : s)
       }));
     } catch (error) {
       set({ sessionsError: error instanceof Error ? error.message : 'Failed to update session' });

@@ -1,11 +1,11 @@
-import { httpClient } from './http.client';
+import { apiService } from './ApiService';
 import { Flashcard, ManualFlashcardPayload } from '../types/flashcards';
 
 class FlashcardService {
   async createManualFlashcard(payload: ManualFlashcardPayload): Promise<Flashcard> {
     try {
-      const response = await httpClient.post<Flashcard>('/flashcards', payload);
-      return response.data;
+      // ApiService returns data directly, no need for .data
+      return await apiService.post<Flashcard>('/flashcards', payload);
     } catch (error) {
       console.error('Error creating manual flashcard:', error);
       throw error;

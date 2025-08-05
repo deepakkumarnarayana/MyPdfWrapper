@@ -1,4 +1,4 @@
-import { httpClient } from './http.client';
+import { apiService } from './ApiService';
 
 export interface ReadingSession {
   id: number;
@@ -45,20 +45,20 @@ class ReadingSessionService {
     });
     
     try {
-      const response = await httpClient.post('/sessions', data);
+      const response = await apiService.post<ReadingSession>('/sessions', data);
       
       console.log(`[SESSION_SERVICE] ${new Date().toISOString()} - START_SESSION_SUCCESS:`, {
-        session_id: response.data.id,
-        pdf_id: response.data.pdf_id,
-        started_at: response.data.started_at,
-        started_at_parsed: new Date(response.data.started_at).toISOString(),
+        session_id: response.id,
+        pdf_id: response.pdf_id,
+        started_at: response.started_at,
+        started_at_parsed: new Date(response.started_at).toISOString(),
         current_local_time: new Date().toISOString(),
         user_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        session_type: response.data.session_type,
+        session_type: response.session_type,
         request_duration_ms: Date.now() - new Date(timestamp).getTime()
       });
       
-      return response.data;
+      return response;
     } catch (error) {
       console.error(`[SESSION_SERVICE] ${new Date().toISOString()} - START_SESSION_ERROR:`, {
         error: error,
@@ -88,22 +88,22 @@ class ReadingSessionService {
     });
     
     try {
-      const response = await httpClient.put(`/sessions/${sessionId}`, {
+      const response = await apiService.put<ReadingSession>(`/sessions/${sessionId}`, {
         ...data,
         ended_at: endedAt,
       });
       
       console.log(`[SESSION_SERVICE] ${new Date().toISOString()} - END_SESSION_SUCCESS:`, {
-        session_id: response.data.id,
-        pdf_id: response.data.pdf_id,
-        started_at: response.data.started_at,
-        ended_at: response.data.ended_at,
-        total_time_minutes: response.data.total_time_minutes,
-        pages_read: response.data.pages_read,
+        session_id: response.id,
+        pdf_id: response.pdf_id,
+        started_at: response.started_at,
+        ended_at: response.ended_at,
+        total_time_minutes: response.total_time_minutes,
+        pages_read: response.pages_read,
         request_duration_ms: Date.now() - new Date(timestamp).getTime()
       });
       
-      return response.data;
+      return response;
     } catch (error) {
       console.error(`[SESSION_SERVICE] ${new Date().toISOString()} - END_SESSION_ERROR:`, {
         error: error,
@@ -128,12 +128,12 @@ class ReadingSessionService {
     });
     
     try {
-      const response = await httpClient.get(`/sessions?pdf_id=${pdfId}`);
+      const response = await apiService.get<ReadingSession[]>(`/sessions?pdf_id=${pdfId}`);
       
       console.log(`[SESSION_SERVICE] ${new Date().toISOString()} - GET_SESSIONS_FOR_PDF_SUCCESS:`, {
         pdf_id: pdfId,
-        sessions_count: response.data.length,
-        sessions: response.data.map((s: ReadingSession) => ({
+        sessions_count: response.length,
+        sessions: response.map((s: ReadingSession) => ({
           id: s.id,
           started_at: s.started_at,
           ended_at: s.ended_at,
@@ -141,7 +141,7 @@ class ReadingSessionService {
         }))
       });
       
-      return response.data;
+      return response;
     } catch (error) {
       console.error(`[SESSION_SERVICE] ${new Date().toISOString()} - GET_SESSIONS_FOR_PDF_ERROR:`, {
         error: error,
@@ -159,7 +159,7 @@ class ReadingSessionService {
     const timestamp = new Date().toISOString();
     
     try {
-      await httpClient.patch(`/sessions/${sessionId}/progress`, {
+      await apiService.patch(`/sessions/${sessionId}/progress`, {
         ...data,
         last_accessed: data.last_accessed || timestamp,
       });
@@ -190,12 +190,12 @@ class ReadingSessionService {
     });
     
     try {
-      const response = await httpClient.get(`/sessions?limit=${limit}`);
+      const response = await apiService.get<ReadingSession[]>(`/sessions?limit=${limit}`);
       
       console.log(`[SESSION_SERVICE] ${new Date().toISOString()} - GET_RECENT_SESSIONS_SUCCESS:`, {
         limit: limit,
-        sessions_count: response.data.length,
-        recent_sessions: response.data.slice(0, 3).map((s: ReadingSession) => ({
+        sessions_count: response.length,
+        recent_sessions: response.slice(0, 3).map((s: ReadingSession) => ({
           id: s.id,
           started_at: s.started_at,
           ended_at: s.ended_at,
@@ -203,7 +203,7 @@ class ReadingSessionService {
         }))
       });
       
-      return response.data;
+      return response;
     } catch (error) {
       console.error(`[SESSION_SERVICE] ${new Date().toISOString()} - GET_RECENT_SESSIONS_ERROR:`, {
         error: error,

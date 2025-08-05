@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { booksApi } from '../../../services/api/books.api';
+import { pdfService } from '../../../services/pdfService';
 import { Book } from '../../../types/dashboard';
 
 // Configure PDF.js worker with better error handling
@@ -42,7 +42,7 @@ export const usePdfLoader = (bookId: string | undefined) => {
     // Fetch book data from API
     const loadBookData = async () => {
       try {
-        const book = await booksApi.getBook(bookId);
+        const book = await pdfService.getPDF(parseInt(bookId));
         if (!book) {
           setError('Book not found');
           setIsLoading(false);

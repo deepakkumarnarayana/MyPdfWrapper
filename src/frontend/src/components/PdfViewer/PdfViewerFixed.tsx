@@ -22,7 +22,7 @@ import { usePdfContextMenu } from './hooks/usePdfContextMenu';
 import { useTableOfContents } from './hooks/useTableOfContents';
 
 // API services
-import { booksApi } from '../../services/api/books.api';
+import { pdfService } from '../../services/pdfService';
 
 // Components
 import { PdfToolbar } from './components/PdfToolbar';
@@ -799,7 +799,7 @@ export const PdfViewer: React.FC = () => {
     if (bookData && bookId && currentPage > 1) {
       const saveProgress = async () => {
         try {
-          await booksApi.updateBook(bookId, {
+          await pdfService.updateBook(bookId, {
             lastReadPage: currentPage,
             currentPage: currentPage,
             // Update progress percentage based on pages read

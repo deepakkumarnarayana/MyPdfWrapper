@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { User, NotificationItem } from '../../types';
-import { authApi } from '../../services/api/auth.api';
+import { apiService } from '../../services/ApiService';
 import { AppStore } from '../index';
 
 export interface AuthSlice {
@@ -33,10 +33,10 @@ export const createAuthSlice: StateCreator<AppStore, [], [], AuthSlice> = (set) 
     set(state => ({ ...state, loading: true, error: null }));
 
     try {
-      const response = await authApi.login(email, password);
+      const response = await apiService.post<{ user: User }>('/auth/login', { email, password });
       set(state => ({ 
         ...state, 
-        user: response.data.user,
+        user: response.user,
         isAuthenticated: true,
         loading: false 
       }));
@@ -52,7 +52,7 @@ export const createAuthSlice: StateCreator<AppStore, [], [], AuthSlice> = (set) 
 
   logout: async () => {
     try {
-      await authApi.logout();
+      await apiService.post('/auth/logout');
       set(state => ({
         ...state,
         user: null,
@@ -69,10 +69,10 @@ export const createAuthSlice: StateCreator<AppStore, [], [], AuthSlice> = (set) 
     set(state => ({ ...state, loading: true }));
 
     try {
-      const response = await authApi.updateProfile(updates);
+      const response = await apiService.put<User>('/auth/profile', updates);
       set(state => ({
         ...state,
-        user: response.data,
+        user: response,
         loading: false
       }));
     } catch (error) {
@@ -87,10 +87,10 @@ export const createAuthSlice: StateCreator<AppStore, [], [], AuthSlice> = (set) 
 
   fetchNotifications: async () => {
     try {
-      const response = await authApi.getNotifications();
+      const response = await apiService.get<NotificationItem[]>('/auth/notifications');
       set(state => ({
         ...state,
-        notifications: response.data
+        notifications: response
       }));
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -99,7 +99,7 @@ export const createAuthSlice: StateCreator<AppStore, [], [], AuthSlice> = (set) 
 
   markNotificationRead: async (id: string) => {
     try {
-      await authApi.markNotificationRead(id);
+      await apiService.patch(`/auth/notifications/${id}/read`);
       set(state => ({
         ...state,
         notifications: state.notifications.map(n => 
@@ -115,11 +115,11 @@ export const createAuthSlice: StateCreator<AppStore, [], [], AuthSlice> = (set) 
     set(state => ({ ...state, loading: true }));
 
     try {
-      const response = await authApi.checkAuth();
+      const response = await apiService.get<{ authenticated: boolean; user: User | null }>('/auth/check');
       set(state => ({
         ...state,
-        isAuthenticated: response.data.authenticated,
-        user: response.data.user || null,
+        isAuthenticated: response.authenticated,
+        user: response.user || null,
         loading: false
       }));
     } catch (error) {
