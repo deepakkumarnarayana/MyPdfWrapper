@@ -15,7 +15,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm run typecheck:*)",
       "Bash(cp:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(curl:*)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": []
   }

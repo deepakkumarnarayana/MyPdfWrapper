@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Book, 
   ResearchPaper, 
@@ -10,132 +10,103 @@ import {
 import { apiService } from '../../../services/ApiService';
 import { pdfService } from '../../../services/pdfService';
 
-export interface DashboardData {
-  books: Book[];
-  researchPapers: ResearchPaper[];
-  sessions: Session[];
-  aiProviders: AIProvider[];
-  systemServices: SystemService[];
-  stats: DashboardStats;
-  isLoading: boolean;
-  error: string | null;
-}
+// Define query keys for caching and invalidation
+const QUERY_KEYS = {
+  books: ['books'],
+  researchPapers: ['researchPapers'],
+  sessions: ['sessions'],
+  aiProviders: ['aiProviders'],
+  systemServices: ['systemServices'],
+  stats: ['stats'],
+  dashboard: ['dashboard'], // A key for all dashboard data
+};
 
 export const useDashboardData = () => {
-  const [data, setData] = useState<DashboardData>({
-    books: [],
-    researchPapers: [],
-    sessions: [],
-    aiProviders: [],
-    systemServices: [],
-    stats: {
-      totalTime: '0h 0m',
-      cardsGenerated: '0',
-      sessionsCompleted: '0',
-      booksRead: '0',
-    },
-    isLoading: true,
-    error: null,
+  const queryClient = useQueryClient();
+
+  // Fetch books
+  const { 
+    data: books = [], 
+    isLoading: isBooksLoading, 
+    error: booksError 
+  } = useQuery<Book[], Error>({
+    queryKey: QUERY_KEYS.books,
+    queryFn: () => pdfService.getBooks(),
   });
 
-  const loadData = useCallback(async () => {
-    setData(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      // Use Promise.allSettled to handle individual API failures gracefully
-      const results = await Promise.allSettled([
-        pdfService.getBooks(),
-        apiService.get<ResearchPaper[]>('/documents?document_type=research_paper'),
-        apiService.get<Session[]>('/sessions'),
-        apiService.get<AIProvider[]>('/ai-proxy/providers'),
-        apiService.get<SystemService[]>('/system/services'),
-        apiService.get<DashboardStats>('/system/stats'),
-      ]);
+  // Fetch research papers
+  const { 
+    data: researchPapers = [], 
+    isLoading: isPapersLoading, 
+    error: papersError 
+  } = useQuery<ResearchPaper[], Error>({
+    queryKey: QUERY_KEYS.researchPapers,
+    queryFn: () => apiService.get<ResearchPaper[]>('/documents?document_type=research_paper'),
+  });
 
-      // Helper to extract data or return a default value on failure
-      const getDataOrDefault = <T>(result: PromiseSettledResult<T>, defaultValue: T): T => {
-        if (result.status === 'fulfilled') {
-          return result.value;
-        }
-        // Log the error for debugging but don't let it break the dashboard
-        console.error('API call failed:', result.reason);
-        return defaultValue;
-      };
+  // Fetch sessions
+  const { 
+    data: sessions = [], 
+    isLoading: isSessionsLoading, 
+    error: sessionsError 
+  } = useQuery<Session[], Error>({
+    queryKey: QUERY_KEYS.sessions,
+    queryFn: () => apiService.get<Session[]>('/sessions'),
+  });
 
-      setData({
-        books: getDataOrDefault(results[0], []),
-        researchPapers: getDataOrDefault(results[1], []),
-        sessions: getDataOrDefault(results[2], []),
-        aiProviders: getDataOrDefault(results[3], []),
-        systemServices: getDataOrDefault(results[4], []),
-        stats: getDataOrDefault(results[5], {
-          totalTime: '0h 0m',
-          cardsGenerated: '0',
-          sessionsCompleted: '0',
-          booksRead: '0',
-        }),
-        isLoading: false,
-        error: null, // No critical error since we are handling failures gracefully
-      });
-    } catch (error) {
-      // This catch block will now only handle unexpected critical errors
-      setData(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to load critical data',
-      }));
-    }
-  }, []);
+  // Fetch AI providers with auto-refresh
+  const { 
+    data: aiProviders = [], 
+    isLoading: isProvidersLoading, 
+    error: providersError 
+  } = useQuery<AIProvider[], Error>({
+    queryKey: QUERY_KEYS.aiProviders,
+    queryFn: () => apiService.get<AIProvider[]>('/ai-providers'),
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+  });
 
-  const refreshData = useCallback(() => {
-    loadData();
-  }, [loadData]);
+  // Fetch system services with auto-refresh
+  const { 
+    data: systemServices = [], 
+    isLoading: isServicesLoading, 
+    error: servicesError 
+  } = useQuery<SystemService[], Error>({
+    queryKey: QUERY_KEYS.systemServices,
+    queryFn: () => apiService.get<SystemService[]>('/system/services'),
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+  });
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Fetch stats
+  const { 
+    data: stats = { totalTime: '0h 0m', cardsGenerated: '0', sessionsCompleted: '0', booksRead: '0' }, 
+    isLoading: isStatsLoading, 
+    error: statsError 
+  } = useQuery<DashboardStats, Error>({
+    queryKey: QUERY_KEYS.stats,
+    queryFn: () => apiService.get<DashboardStats>('/system/stats'),
+  });
 
-  // Auto-refresh every 5 minutes for system services and AI providers
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const [aiProviders, systemServices] = await Promise.all([
-          apiService.get<AIProvider[]>('/ai-proxy/providers'),
-          apiService.get<SystemService[]>('/system/services'),
-        ]);
-        
-        setData(prev => ({
-          ...prev,
-          aiProviders,
-          systemServices,
-        }));
-      } catch (error) {
-        console.error('Failed to refresh real-time data:', error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+  // Combine loading states and errors
+  const isLoading = isBooksLoading || isPapersLoading || isSessionsLoading || isProvidersLoading || isServicesLoading || isStatsLoading;
+  const error = booksError || papersError || sessionsError || providersError || servicesError || statsError;
 
-    return () => clearInterval(interval);
-  }, []);
+  // Function to invalidate all dashboard queries and trigger a refresh
+  const refreshData = () => {
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboard });
+  };
 
   return {
-    ...data,
+    books,
+    researchPapers,
+    sessions,
+    aiProviders,
+    systemServices,
+    stats,
+    isLoading,
+    error: error ? error.message : null,
     refreshData,
-    reloadBooks: useCallback(async () => {
-      try {
-        const books = await pdfService.getBooks();
-        setData(prev => ({ ...prev, books }));
-      } catch (error) {
-        console.error('Failed to reload books:', error);
-      }
-    }, []),
-    reloadSessions: useCallback(async () => {
-      try {
-        const sessions = await apiService.get<Session[]>('/sessions');
-        setData(prev => ({ ...prev, sessions }));
-      } catch (error) {
-        console.error('Failed to reload sessions:', error);
-      }
-    }, []),
+    // Specific reload functions by invalidating specific query keys
+    reloadBooks: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.books }),
+    reloadSessions: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sessions }),
   };
 };

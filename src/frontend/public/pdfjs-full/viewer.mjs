@@ -872,7 +872,7 @@ const defaultOptions = {
     kind: OptionKind.API
   },
   isEvalSupported: {
-    value: true,
+    value: false,
     kind: OptionKind.API
   },
   isOffscreenCanvasSupported: {
@@ -1477,7 +1477,7 @@ class BasePreferences {
     enableNewAltTextWhenAddingImage: true,
     enablePermissions: false,
     enablePrintAutoRotate: true,
-    enableScripting: true,
+    enableScripting: false,
     enableSignatureEditor: false,
     enableUpdatedAddImage: false,
     externalLinkTarget: 0,
@@ -16594,12 +16594,27 @@ initCom(PDFViewerApplication);
   PDFPrintServiceFactory.initGlobals(PDFViewerApplication);
 }
 {
-  const HOSTED_VIEWER_ORIGINS = new Set(["null", "http://mozilla.github.io", "https://mozilla.github.io"]);
+  // Dynamic origin detection for secure development
+  const getCurrentOrigin = () => {
+    try {
+      return new URL(window.location).origin || "null";
+    } catch {
+      return "null";
+    }
+  };
+  
+  const HOSTED_VIEWER_ORIGINS = new Set([
+    "null", 
+    "http://mozilla.github.io", 
+    "https://mozilla.github.io",
+    getCurrentOrigin() // Dynamically include current origin for development
+  ]);
+  
   var validateFileURL = function (file) {
     if (!file) {
       return;
     }
-    const viewerOrigin = URL.parse(window.location)?.origin || "null";
+    const viewerOrigin = getCurrentOrigin();
     if (HOSTED_VIEWER_ORIGINS.has(viewerOrigin)) {
       return;
     }

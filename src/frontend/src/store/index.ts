@@ -36,13 +36,8 @@ export const useAuth = () => useAppStore(state => ({
 }));
 
 export const useBooks = () => useAppStore(state => ({
-  books: state.books,
-  loading: state.booksLoading,
-  error: state.booksError,
-  fetchBooks: state.fetchBooks,
-  createBook: state.createBook,
-  updateBook: state.updateBook,
-  deleteBook: state.deleteBook,
+  uploadProgress: state.uploadProgress,
+  setUploadProgress: state.setUploadProgress,
 }));
 
 export const useSessions = () => useAppStore(state => ({

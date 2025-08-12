@@ -52,14 +52,12 @@ export const usePdfLoader = (bookId: string | undefined) => {
         setBookData(book);
         setLastReadPage(book.lastReadPage || 1);
         
-        // Use API endpoint to get PDF file
-        const pdfPath = `/api/books/${bookId}/pdf`;
-    
+        // Get PDF URL from API and resolve to absolute URL
+        const pdfUrl = await pdfService.getBookPdfUrl(bookId);
+        
         const loadingTask = pdfjsLib.getDocument({
-          url: pdfPath,
-          cMapUrl: new URL('pdfjs-dist/cmaps/', import.meta.url).toString(),
+          url: pdfUrl,
           cMapPacked: true,
-          standardFontDataUrl: new URL('pdfjs-dist/standard_fonts/', import.meta.url).toString(),
         });
         
         let cancelled = false;

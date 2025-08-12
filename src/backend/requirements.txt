@@ -17,6 +17,7 @@ black==25.1.0
 mypy==1.13.0
 aiohttp==3.9.5
 aiofiles==23.2.1
+redis==5.0.1
 
 # --- Optional Cloud Provider Libraries ---
 # Uncomment the lines below if you configure the respective cloud storage provider.
