@@ -4,4 +4,5 @@ export const environment = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000/api/v1' : '/api/v1'),
   backendBaseUrl: import.meta.env.VITE_BACKEND_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : ''),
   debug: import.meta.env.VITE_DEBUG === 'true',
+  pdfjsEventLogging: import.meta.env.VITE_PDFJS_EVENT_LOGGING === 'true',
 };
