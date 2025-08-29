@@ -1,0 +1,61 @@
+// Simple PDF.js text capture for flashcards - No class, no complexity
+// Captures highlighted text and sends to parent window
+
+let currentTextSelection = null;
+
+// Wait for PDF.js to load
+function waitForPDFJS() {
+    if (window.PDFViewerApplication && window.PDFViewerApplication.eventBus) {
+        setupTextCapture();
+    } else {
+        setTimeout(waitForPDFJS, 100);
+    }
+}
+
+function setupTextCapture() {
+    const eventBus = window.PDFViewerApplication.eventBus;
+    
+    // Listen for annotation changes - this captures text when highlights are created
+    eventBus._on('annotationeditorstateschanged', (evt) => {
+        // Defer processing to avoid blocking DOM operations
+        requestAnimationFrame(() => {
+            try {
+                if (evt && evt.source && evt.source.selectedEditors) {
+                    const firstEditor = Array.from(evt.source.selectedEditors)[0];
+                    if (firstEditor && firstEditor['#text']) {
+                        const text = firstEditor['#text'].trim();
+                        if (text) {
+                            currentTextSelection = {
+                                text: text,
+                                timestamp: Date.now()
+                            };
+                            
+                            // Send to parent window
+                            window.parent.postMessage({
+                                type: 'flashcard_annotations',
+                                annotations: [{
+                                    text: text,
+                                    highlighted_text: text,
+                                    pageNumber: 1,
+                                    type: 'highlight'
+                                }],
+                                timestamp: Date.now()
+                            }, window.location.origin);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Text capture error:', error);
+            }
+        });
+    });
+}
+
+// Start when DOM loads
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(waitForPDFJS, 1000);
+    });
+} else {
+    setTimeout(waitForPDFJS, 1000);
+}
