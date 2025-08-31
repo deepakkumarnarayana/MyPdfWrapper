@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from app.database import create_tables
-from app.routers import pdfs, flashcards, health, sessions, auth, system, ai_providers
+from app.routers import pdfs, flashcards, health, sessions, auth, system, ai_providers, flashcard_annotations
 
 # Import modern settings configuration
 from app.config import get_settings
@@ -89,6 +89,7 @@ app.include_router(sessions.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
 app.include_router(ai_providers.router, prefix="/api/v1")
+app.include_router(flashcard_annotations.router, prefix="/api/v1")
 
 # Serve static files (PDFs) - Use modern settings
 pdf_storage_path = settings.actual_pdf_storage_path

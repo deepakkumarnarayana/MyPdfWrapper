@@ -140,3 +140,85 @@ class PDFService:
         except Exception as e:
             print(f"Error getting page count from {file_path}: {e}")
             return 0
+    
+    def process_annotations_background(self, file_path: str, annotations: list) -> Dict[str, Any]:
+        """Process and save annotations to PDF file using PyMuPDF"""
+        try:
+            doc = fitz.open(file_path)
+            processed_count = 0
+            errors = []
+            
+            # Clear existing annotations first
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                annots = page.annots()
+                for annot in annots:
+                    page.delete_annot(annot)
+            
+            # Add new annotations
+            for annotation in annotations:
+                try:
+                    page_number = annotation.get("page_number", 1) - 1  # Convert to 0-based
+                    if page_number < 0 or page_number >= len(doc):
+                        continue
+                        
+                    page = doc[page_number]
+                    
+                    # Create highlight annotation
+                    # Get coordinates from the coordinates dict stored by flashcard annotation service
+                    coordinates = annotation.get("coordinates", {})
+                    x_norm = coordinates.get("x", 0)
+                    y_norm = coordinates.get("y", 0) 
+                    width_norm = coordinates.get("width", 100)
+                    height_norm = coordinates.get("height", 20)
+                    
+                    # DEBUG: Log coordinate values
+                    print(f"[PDF_SERVICE_DEBUG] Normalized coords from frontend: x={x_norm}, y={y_norm}, width={width_norm}, height={height_norm}")
+                    
+                    # PDF.js sends normalized coordinates (0-1), convert to absolute coordinates
+                    # Both PDF.js and PyMuPDF use same coordinate system (top-left origin)
+                    page_rect = page.rect
+                    page_width = page_rect.width
+                    page_height = page_rect.height
+                    
+                    # Convert normalized to absolute coordinates
+                    x = x_norm * page_width
+                    y = y_norm * page_height
+                    width = width_norm * page_width
+                    height = height_norm * page_height
+                    
+                    print(f"[PDF_SERVICE_DEBUG] Page dimensions: {page_width} x {page_height}")
+                    print(f"[PDF_SERVICE_DEBUG] Converted to absolute coordinates: x={x}, y={y}, width={width}, height={height}")
+                    
+                    # PyMuPDF coordinate system - both PDF.js and PyMuPDF use top-left origin
+                    # Create rectangle with absolute coordinates
+                    rect = fitz.Rect(x, y, x + width, y + height)
+                    
+                    # Add highlight annotation
+                    highlight = page.add_highlight_annot(rect)
+                    highlight.set_colors({"stroke": [1, 1, 0]})  # Yellow highlight
+                    highlight.update()
+                    
+                    processed_count += 1
+                    
+                except Exception as e:
+                    errors.append(f"Failed to process annotation: {str(e)}")
+            
+            # Save the PDF
+            doc.save(file_path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
+            doc.close()
+            
+            return {
+                "status": "success",
+                "processed_count": processed_count,
+                "errors": errors,
+                "message": f"Processed {processed_count} annotations"
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error", 
+                "processed_count": 0,
+                "errors": [str(e)],
+                "message": f"Failed to process annotations: {str(e)}"
+            }

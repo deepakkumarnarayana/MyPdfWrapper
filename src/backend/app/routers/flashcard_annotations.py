@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
-    prefix="/api/v1/documents/{document_id}/flashcard-annotations",
+    prefix="/documents/{document_id}/flashcard-annotations",
     tags=["flashcard-annotations"]
 )
 
@@ -119,16 +119,13 @@ async def sync_flashcard_annotations(
         if not pdf:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Convert annotations to PDF service format
+        # Convert annotations to PDF service format (keep coordinates as nested dict)
         pdf_annotations = []
         for ann in request.annotations:
             pdf_annotations.append({
                 "id": ann.clientId,
                 "page_number": ann.pageNumber,
-                "x_coordinate": ann.coordinates["x"],
-                "y_coordinate": ann.coordinates["y"], 
-                "width": ann.coordinates["width"],
-                "height": ann.coordinates["height"],
+                "coordinates": ann.coordinates,  # Keep as nested dict for PDF service
                 "annotation_type": ann.annotationType,
                 "text": ann.text,
                 "color": ann.color

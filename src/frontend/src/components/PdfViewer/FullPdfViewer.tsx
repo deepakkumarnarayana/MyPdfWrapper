@@ -30,6 +30,7 @@ import { SessionHistoryModal } from './SessionHistoryModal';
 import { NightModeToggle } from './NightModeToggle';
 import { CreateFlashcardModal } from './CreateFlashcardModal';
 import { flashcardService } from '../../services/flashcardService';
+import { apiService } from '../../services/ApiService';
 import { useUI } from '../../store';
 
 export const FullPdfViewer: React.FC = () => {
@@ -236,6 +237,24 @@ export const FullPdfViewer: React.FC = () => {
 
   // Listen for messages from the PDF.js iframe (for page changes and text selection)
   useEffect(() => {
+    const handleFlashcardSync = async (syncData: any) => {
+      try {
+        console.log('[PDF_VIEWER] 🔄 Processing flashcard sync request:', syncData);
+        
+        const result = await apiService.post(`/documents/${syncData.documentId}/flashcard-annotations/sync`, {
+          annotations: syncData.annotations,
+          changeType: syncData.changeType,
+          isInitialLoad: syncData.isInitialLoad,
+          timestamp: syncData.timestamp
+        });
+        
+        console.log('[PDF_VIEWER] ✅ Flashcard sync success:', result);
+
+      } catch (error) {
+        console.error('[PDF_VIEWER] ❌ Flashcard sync failed:', error);
+      }
+    };
+
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) {
         return; // Ignore messages from other origins
@@ -251,6 +270,26 @@ export const FullPdfViewer: React.FC = () => {
 
       if (data && data.type === 'text-selected') {
         setSelection({ text: data.text, position: data.position });
+      }
+
+      // Handle flashcard annotation messages
+      if (data && data.type === 'flashcard_annotations') {
+        console.log('[PDF_VIEWER] 📝 Received flashcard annotations:', data.annotations);
+      }
+
+      // Handle flashcard sync completion messages
+      if (data && data.type === 'flashcard_sync_complete') {
+        if (data.status === 'success') {
+          console.log('[PDF_VIEWER] ✅ Flashcard sync success:', data.message);
+        } else {
+          console.error('[PDF_VIEWER] ❌ Flashcard sync failed:', data.error);
+        }
+      }
+
+      // Handle flashcard sync requests from iframe
+      if (data && data.type === 'flashcard_sync_request') {
+        console.log('[PDF_VIEWER] 📡 Received sync request:', data);
+        handleFlashcardSync(data);
       }
     };
 
