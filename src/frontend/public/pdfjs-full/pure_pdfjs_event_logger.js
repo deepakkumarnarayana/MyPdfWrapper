@@ -1,21 +1,20 @@
 // Pure PDF.js Event Logger - No custom logic, just intercept and log
-// Check environment configuration for feature flag
-const shouldEnableLogging = window.environment?.pdfjsEventLogging || false;
+// Check multiple environment sources for feature flag
+const shouldEnableLogging = 
+    window.environment?.pdfjsEventLogging || 
+    window.pdfConfig?.pdfjsEventLogging ||
+    true; // Default to enabled for development
 
-if (!shouldEnableLogging) {
-    console.log('🔇 [PURE_LOGGER] PDF.js event logging disabled by environment configuration');
-} else {
-    console.log('🔬 [PURE_LOGGER] Loading pure PDF.js event logger...');
-    
-    // Wait for PDF.js to load
-    function waitForPDFJS() {
-        if (window.PDFViewerApplication && window.PDFViewerApplication.eventBus) {
-            console.log('✅ [PURE_LOGGER] PDF.js found, setting up event interception...');
-            setupPureEventLogging();
-        } else {
-            console.log('⏳ [PURE_LOGGER] Waiting for PDF.js...');
-            setTimeout(waitForPDFJS, 100);
-        }
+console.log('🔬 [PURE_LOGGER] Loading pure PDF.js event logger...');
+
+// Wait for PDF.js to load
+function waitForPDFJS() {
+    if (window.PDFViewerApplication && window.PDFViewerApplication.eventBus) {
+        console.log('✅ [PURE_LOGGER] PDF.js found, setting up event interception...');
+        setupPureEventLogging();
+    } else {
+        console.log('⏳ [PURE_LOGGER] Waiting for PDF.js...');
+        setTimeout(waitForPDFJS, 100);
     }
 }
 
@@ -103,9 +102,7 @@ function logBasicEvents() {
     });
 }
 
-// Start the logger only if enabled
-if (shouldEnableLogging) {
-    waitForPDFJS();
-    logBasicEvents();
-    console.log('🔬 [PURE_LOGGER] Pure PDF.js event logger loaded');
-}
+// Start the logger 
+waitForPDFJS();
+logBasicEvents();
+console.log('🔬 [PURE_LOGGER] Pure PDF.js event logger loaded');
